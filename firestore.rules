@@ -1,0 +1,54 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. Devices: Only owner can manage their hardware nodes
+    match /devices/{deviceId} {
+      allow read, write: if request.auth != null && (
+        request.auth.uid == resource.data.userId || 
+        request.auth.uid == request.resource.data.userId ||
+        deviceId.startsWith(request.auth.uid)
+      );
+    }
+    
+    // 2. SyncLinks: Only owner can manage peering relationships
+    match /sync_links/{linkId} {
+      allow read, write: if request.auth != null && (
+        request.auth.uid == resource.data.ownerId || 
+        request.auth.uid == request.resource.data.ownerId
+      );
+    }
+    
+    // 3. Clipboard: Strict ownership & Verified Peering
+    match /clipboard/{clipId} {
+      // Rule: Can read if you are the owner OR if it's a global clip in your mesh
+      // OR if the clip belongs to a SyncLink that YOU own
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.userId ||
+        (resource.data.syncLinkId == "global" && request.auth.uid == resource.data.userId) ||
+        get(/databases/$(database)/documents/sync_links/$(resource.data.syncLinkId)).data.ownerId == request.auth.uid
+      );
+      
+      // Rule: Can only create clips tagged with your own UID
+      allow create: if request.auth != null && 
+        request.resource.data.userId == request.auth.uid;
+        
+      allow update, delete: if request.auth != null && 
+        resource.data.userId == request.auth.uid;
+    }
+    
+    // 4. Pairing OTPs: Locked to the generator
+    match /sync_codes/{otp} {
+      allow read, write: if request.auth != null && (
+        request.auth.uid == resource.data.uid || 
+        request.auth.uid == request.resource.data.uid
+      );
+      // Secondary devices use API to verify OTP, not direct DB access
+    }
+
+    // 5. User Profiles
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

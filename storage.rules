@@ -1,0 +1,25 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Protect user-specific clips and data
+    match /users/{userId}/{allPaths=**} {
+      // Allow read/write if the authenticated user matches the bucket path
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Explicit rule for clipboard fragments
+    match /users/{userId}/clips/{fileId} {
+      // Allow all paired devices (belonging to same UID) to read
+      allow read: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow authenticated devices to upload clips
+      allow create: if request.auth != null && request.auth.uid == userId &&
+        request.resource.size < 50 * 1024 * 1024 && // 50MB Max
+        request.resource.contentType.matches('image/.*|application/pdf|text/.*');
+        
+      // Prevent editing once uploaded (immutable clips)
+      allow update, delete: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

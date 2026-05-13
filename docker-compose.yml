@@ -1,0 +1,28 @@
+
+version: "3"
+
+services:
+  app:
+    container_name: web-app
+    build:
+      context: ./
+      dockerfile: Dockerfile.dev
+    restart: always
+    networks:
+      - web_app_network
+    ports:
+      - 3000:3000
+    env_file: 
+      - .env.local
+    tty: true
+    stdin_open: true
+    volumes:
+      - .:/app
+
+networks:
+  web_app_network:
+    name: web-shared-network
+    external: true
+
+  #docker network create web-shared-network
+  #replace web with app_name

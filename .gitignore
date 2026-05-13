@@ -1,0 +1,9 @@
+
+node_modules
+.env
+.next
+.vscode/
+.idea/
+coverage
+/etc/secrets
+.env.local
