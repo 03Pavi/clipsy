@@ -5,6 +5,7 @@ interface UserInfo {
   name: string;
   email: string;
   avatarUrl: string;
+  isAnonymous: boolean;
 }
 
 interface UserState {

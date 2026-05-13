@@ -13,5 +13,6 @@ export interface ClipboardItem {
   fileSize?: number;
   metadata?: string;                  // JSON string for additional properties
   isPinned: boolean;                  // Priority status
+  isTransient?: boolean;               // For temporary, mesh-synced items
   timestamp: number;                  // Unix Timestamp
 }

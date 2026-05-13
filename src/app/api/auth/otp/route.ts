@@ -68,7 +68,7 @@ export async function POST(req: Request) {
       // Note: We DO NOT delete the code here anymore to keep it static/forever
       console.log('✅ [OTP API] Verification Successful (Code Preserved)');
 
-      return NextResponse.json({ token: customToken });
+      return NextResponse.json({ token: customToken, targetUid: data?.uid });
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

@@ -10,26 +10,24 @@ async function getUserId(req: Request) {
   const idToken = authHeader.split('Bearer ')[1];
   try {
     const decodedToken = await adminAuth.verifyIdToken(idToken);
-    return decodedToken.uid;
+    return { uid: decodedToken.uid, isAnonymous: decodedToken.firebase?.sign_in_provider === 'anonymous' };
   } catch (error: any) {
     console.error('🔐 Auth Verification Failed:', error.message);
     throw new Error('UNAUTHORIZED');
   }
 }
 
-/* GET – fetch user clipboard items */
 export async function GET(req: Request) {
   try {
-    const uid = await getUserId(req);
-    console.log('📡 [GET /api/clipboard] Fetching for UID:', uid);
+    const { uid, isAnonymous } = await getUserId(req);
     
-    const snap = await adminDb
-      .collection('clipboard')
-      .where('userId', '==', uid)
-      .get();
+    // Strictly follow individual user ownership to satisfy security rules
+    const query = adminDb.collection('clipboard').where('userId', '==', uid);
+    
+    const snap = await query.get();
       
     const items = snap.docs.map(d => ({ id: d.id, ...d.data() })) as ClipboardItem[];
-    console.log(`✅ [GET /api/clipboard] Success: ${items.length} items found`);
+    console.log(`✅ [GET /api/clipboard] Success: ${items.length} items found (isAnon: ${isAnonymous})`);
     return NextResponse.json({ items });
   } catch (e: any) {
     console.error('❌ [GET /api/clipboard] Error:', e.message);
@@ -43,8 +41,13 @@ export async function GET(req: Request) {
 /* POST – add a new item */
 export async function POST(req: Request) {
   try {
-    const uid = await getUserId(req);
+    const { uid, isAnonymous } = await getUserId(req);
     const data = await req.json();
+    
+    // SECURITY: Anonymous users can ONLY sync transient data (Public Mesh)
+    if (isAnonymous && !data.isTransient) {
+      return NextResponse.json({ error: 'PERMANENT_STORAGE_NOT_ALLOWED' }, { status: 403 });
+    }
     console.log('📡 [POST /api/clipboard] Adding item for UID:', uid);
 
     const newItem: Omit<ClipboardItem, 'id'> = {
@@ -59,6 +62,7 @@ export async function POST(req: Request) {
       fileSize: data.fileSize,
       metadata: data.metadata,
       isPinned: false,
+      isTransient: !!data.isTransient,
       timestamp: data.timestamp ?? Date.now(),
     };
     
@@ -67,33 +71,34 @@ export async function POST(req: Request) {
     const ref = await adminDb.collection('clipboard').add(newItem);
     console.log('✅ [POST /api/clipboard] Save complete. ID:', ref.id);
 
-    // 6. ROLLING HISTORY PRUNING (Maintain Top 10)
+    // 6. ROLLING HISTORY PRUNING
     try {
-      // We fetch all and sort in-memory to avoid "Index Required" errors
+      // Fetch all for this user
       const snap = await adminDb.collection('clipboard')
         .where('userId', '==', uid)
         .get();
 
-      if (snap.size > 10) {
-        console.log(`🧹 [POST /api/clipboard] Pruning ${snap.size - 10} old clips...`);
+      const limit = isAnonymous ? 3 : 10;
+      
+      if (snap.size > limit) {
+        console.log(`🧹 [POST /api/clipboard] Pruning ${snap.size - limit} old clips (Limit: ${limit})...`);
         
-        // Sort: Pinned first, then Timestamp desc
         const allItems = snap.docs.map(doc => ({ 
           ref: doc.ref, 
           data: doc.data() 
         }));
 
+        // Sort: Pinned first (for normal users), then Timestamp desc
         allItems.sort((a, b) => {
           if (a.data.isPinned !== b.data.isPinned) return a.data.isPinned ? -1 : 1;
           return (b.data.timestamp || 0) - (a.data.timestamp || 0);
         });
 
-        const batch = adminDb.batch();
-        // Keep top 10, delete the rest
-        allItems.slice(10).forEach(item => {
-          batch.delete(item.ref);
-        });
-        await batch.commit();
+        // Delete items beyond the limit
+        const toDelete = allItems.slice(limit);
+        for (const item of toDelete) {
+          await item.ref.delete();
+        }
       }
     } catch (pruneError) {
       console.error('⚠️ [POST /api/clipboard] Pruning failed:', pruneError);
@@ -112,7 +117,8 @@ export async function POST(req: Request) {
 /* PATCH – update an item (pin/unpin) */
 export async function PATCH(req: Request) {
   try {
-    const uid = await getUserId(req);
+    const { uid, isAnonymous } = await getUserId(req);
+    if (isAnonymous) return NextResponse.json({ error: 'ANONYMOUS_STORAGE_NOT_ALLOWED' }, { status: 403 });
     const data = await req.json();
     const { id, isPinned } = data;
     if (!id) throw new Error('MISSING_ID');
@@ -141,7 +147,8 @@ export async function PATCH(req: Request) {
 /* DELETE – remove an item */
 export async function DELETE(req: Request) {
   try {
-    const uid = await getUserId(req);
+    const { uid, isAnonymous } = await getUserId(req);
+    if (isAnonymous) return NextResponse.json({ error: 'ANONYMOUS_STORAGE_NOT_ALLOWED' }, { status: 403 });
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     if (!id) throw new Error('MISSING_ID');

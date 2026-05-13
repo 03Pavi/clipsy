@@ -11,13 +11,14 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   return (
     <Box sx={{
       width: 260,
-      bgcolor: '#0b1326',
-      borderRight: '1px solid rgba(255, 255, 255, 0.05)',
+      bgcolor: 'var(--theme-bg)',
+      borderRight: '1px solid var(--theme-border)',
       display: 'flex',
       flexDirection: 'column',
       p: 2.5,
-      color: 'white',
-      height: '100vh'
+      color: 'var(--text-primary)',
+      height: '100vh',
+      backdropFilter: 'blur(10px)'
     }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 6, px: 1 }}>
         <Box sx={{ 

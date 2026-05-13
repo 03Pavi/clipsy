@@ -18,6 +18,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
           name: user.displayName || 'Anonymous',
           email: user.email || '',
           avatarUrl: user.photoURL || '',
+          isAnonymous: user.isAnonymous,
         }));
       } else {
         dispatch(logout());

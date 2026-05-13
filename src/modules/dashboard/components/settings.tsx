@@ -106,13 +106,13 @@ export function Settings() {
     }
   };
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4, position: 'relative', pb: 10 }}>
-      <Box sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 3 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4, position: 'relative', pb: 15 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' }, gap: 3 }}>
         {/* Left Column */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {/* Sync & Security Protocols */}
           <Card sx={{ bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: '20px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-            <CardContent sx={{ p: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <CardContent sx={{ p: { xs: 2, md: 4 }, display: 'flex', flexDirection: 'column', gap: 4 }}>
               <Box display="flex" alignItems="center" gap={1.5}>
                 <Box sx={{ bgcolor: 'rgba(0,112,255,0.1)', p: 1, borderRadius: 1.5 }}>
                   <Security sx={{ color: "var(--theme-primary)", fontSize: 20 }} />
@@ -179,7 +179,7 @@ export function Settings() {
 
           {/* Data & History */}
           <Card sx={{ bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: '20px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-            <CardContent sx={{ p: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <CardContent sx={{ p: { xs: 2, md: 4 }, display: 'flex', flexDirection: 'column', gap: 4 }}>
               <Box display="flex" alignItems="center" gap={1.5}>
                 <Box sx={{ bgcolor: 'rgba(255,100,50,0.1)', p: 1, borderRadius: 1.5 }}>
                   <History sx={{ color: '#ff6432', fontSize: 20 }} />
@@ -193,12 +193,12 @@ export function Settings() {
               <Box display="flex" gap={3}>
                 <Box sx={{ flex: 1, p: 2, bgcolor: 'rgba(255,255,255,0.02)', borderRadius: 2, border: '1px solid var(--theme-border)' }}>
                   <Typography variant="caption" sx={{ color: 'var(--text-muted)', fontWeight: 700, letterSpacing: 0.5 }}>CACHE SIZE</Typography>
-                  <Typography variant="h4" fontWeight={700} sx={{ mt: 1, color: 'var(--text-primary)' }}>{stats.cacheSize}</Typography>
-                  <Button fullWidth sx={{ mt: 2, bgcolor: 'rgba(255,255,255,0.05)', color: 'white', textTransform: 'none', borderRadius: 1.5 }}>Optimize Cache</Button>
+                  <Typography variant="h5" fontWeight={700} sx={{ mt: 1, color: 'var(--text-primary)', fontSize: { xs: '1.25rem', md: '2.125rem' } }}>{stats.cacheSize}</Typography>
+                  <Button fullWidth sx={{ mt: 2, bgcolor: 'rgba(255,255,255,0.05)', color: 'white', textTransform: 'none', borderRadius: 1.5 }}>Optimize</Button>
                 </Box>
                 <Box sx={{ flex: 1, p: 2, bgcolor: 'rgba(255,255,255,0.02)', borderRadius: 2, border: '1px solid var(--theme-border)' }}>
                   <Typography variant="caption" sx={{ color: 'var(--text-muted)', fontWeight: 700, letterSpacing: 0.5 }}>LAST SYNC</Typography>
-                  <Typography variant="h4" fontWeight={700} sx={{ mt: 1, color: 'var(--text-primary)' }}>{stats.lastSync}</Typography>
+                  <Typography variant="h5" fontWeight={700} sx={{ mt: 1, color: 'var(--text-primary)', fontSize: { xs: '1.25rem', md: '2.125rem' } }}>{stats.lastSync}</Typography>
                   <Button fullWidth sx={{ mt: 2, bgcolor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', textTransform: 'none', borderRadius: 1.5 }}>Clear History</Button>
                 </Box>
               </Box>
@@ -210,7 +210,7 @@ export function Settings() {
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {/* Appearance */}
           <Card sx={{ bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: '20px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-            <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <CardContent sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3 }}>
               <Box display="flex" alignItems="center" gap={1.5}>
                 <Box sx={{ bgcolor: 'rgba(168,85,247,0.1)', p: 1, borderRadius: 1.5 }}>
                   <Palette sx={{ color: '#a855f7', fontSize: 20 }} />
@@ -253,7 +253,7 @@ export function Settings() {
 
           {/* Hotkeys */}
           <Card sx={{ bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: '20px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-            <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <CardContent sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3 }}>
               <Box display="flex" alignItems="center" gap={1.5}>
                 <Box sx={{ bgcolor: 'rgba(0,112,255,0.1)', p: 1, borderRadius: 1.5 }}>
                   <Keyboard sx={{ color: "var(--theme-primary)", fontSize: 20 }} />
@@ -296,21 +296,21 @@ export function Settings() {
 
       {/* Bottom Bar */}
       <Box sx={{
-        position: 'fixed', bottom: 0, right: 0, left: 260,
-        p: 3, bgcolor: '#050914', borderTop: '1px solid rgba(255,255,255,0.05)',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100
+        position: 'fixed', 
+        bottom: 0, 
+        right: 0, 
+        left: { xs: 0, md: 260 },
+        p: 3, 
+        bgcolor: 'var(--theme-bg)', 
+        borderTop: '1px solid var(--theme-border)',
+        display: 'flex', 
+        flexDirection: { xs: 'column', sm: 'row' },
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        zIndex: 100,
+        gap: 2,
+        backdropFilter: 'blur(10px)'
       }}>
-        <Box display="flex" gap={4} alignItems="center">
-          <Box display="flex" alignItems="center" gap={1}>
-            <CheckCircle sx={{ color: 'var(--text-muted)', fontSize: 16 }} />
-            <Typography variant="caption" sx={{ color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, fontSize: '0.65rem' }}>Privacy Compliant (GDPR/SOC2)</Typography>
-          </Box>
-          <Box display="flex" alignItems="center" gap={1}>
-            <Info sx={{ color: 'var(--text-muted)', fontSize: 16 }} />
-            <Typography variant="caption" sx={{ color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, fontSize: '0.65rem' }}>v2.4.0 Stable Build</Typography>
-          </Box>
-        </Box>
-
         <Box display="flex" gap={2}>
           <Button variant="text" sx={{ color: 'rgba(255,255,255,0.4)', textTransform: 'none', fontSize: '0.85rem' }}>Export Logs</Button>
           <Button

@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Box, Typography, IconButton, InputBase, Avatar, Popover, Button, Divider, Snackbar, Alert, Menu, MenuItem, ListItemIcon, ListItemText } from '@mui/material';
-import { Search, NotificationsNone, Logout, Person, Keyboard, History, MoreVert, ContentCopy, Delete, PushPin, Close } from '@mui/icons-material';
+import { Box, Typography, IconButton, InputBase, Avatar, Popover, Button, Divider, Snackbar, Alert, Menu, MenuItem, ListItemIcon, ListItemText, useMediaQuery, Drawer } from '@mui/material';
+import { Search, NotificationsNone, Logout, Person, Keyboard, History, MoreVert, ContentCopy, Delete, PushPin, Close, Menu as MenuIcon } from '@mui/icons-material';
 import { auth, db } from '@/shared/api/firebase';
 import { signOut } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -19,6 +19,8 @@ export function DashboardLayout() {
   const previewTheme = useAppSelector(state => state.user.previewTheme);
   const clipboardItems = useAppSelector(state => state.clipboard.items);
   const dispatch = useAppDispatch();
+  const isMobile = useMediaQuery('(max-width:960px)');
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('hub');
   const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [toast, setToast] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
@@ -96,6 +98,18 @@ export function DashboardLayout() {
       return;
     }
 
+    // LOCAL SEARCH FOR ANONYMOUS USERS
+    if (user?.isAnonymous) {
+      const query = searchQuery.toLowerCase();
+      const localResults = clipboardItems.filter(item => 
+        item.content.toLowerCase().includes(query) ||
+        (item.title && item.title.toLowerCase().includes(query)) ||
+        item.type.toLowerCase().includes(query)
+      );
+      setSearchResults(localResults);
+      return;
+    }
+
     const delayDebounceFn = setTimeout(async () => {
       try {
         setIsSearching(true);
@@ -117,7 +131,7 @@ export function DashboardLayout() {
     }, 300);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery]);
+  }, [searchQuery, user?.isAnonymous, clipboardItems]);
 
   useEffect(() => {
     const handleGlobalHotkeys = (e: KeyboardEvent) => {
@@ -234,38 +248,72 @@ export function DashboardLayout() {
       bgcolor: 'var(--theme-bg)',
       transition: 'all 0.5s ease',
     }}>
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      {!isMobile ? (
+        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      ) : (
+        <Drawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={() => setMobileOpen(false)}
+          PaperProps={{
+            sx: {
+              width: 280,
+              bgcolor: 'var(--theme-bg)',
+              borderRight: '1px solid var(--theme-border)'
+            }
+          }}
+        >
+          <Sidebar 
+            activeTab={activeTab} 
+            setActiveTab={(tab) => {
+              setActiveTab(tab);
+              setMobileOpen(false);
+            }} 
+          />
+        </Drawer>
+      )}
 
       <Box component="main" sx={{
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
-        position: 'relative'
+        position: 'relative',
+        width: isMobile ? '100%' : 'auto'
       }}>
         {/* Top Header */}
         <Box component="header" sx={{
-          px: 4, py: 2,
+          px: isMobile ? 2 : 4, py: 2,
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           bgcolor: 'transparent',
-          zIndex: 10
+          zIndex: 10,
+          gap: 2
         }}>
+          {isMobile && (
+            <IconButton 
+              onClick={() => setMobileOpen(true)}
+              sx={{ color: 'var(--text-primary)', bgcolor: 'rgba(255,255,255,0.05)', borderRadius: 2 }}
+            >
+              <MenuIcon />
+            </IconButton>
+          )}
           {/* Search Bar */}
           <Box sx={{
             display: 'flex',
             flexDirection: 'column',
             position: 'relative',
-            width: 400,
+            flex: 1,
+            maxWidth: isMobile ? 'none' : 400,
             zIndex: 100
           }}>
             <Box sx={{
               display: 'flex',
               alignItems: 'center',
-              bgcolor: 'rgba(255,255,255,0.05)',
+              bgcolor: 'var(--theme-card-bg)',
               px: 2, py: 0.5,
               borderRadius: 2,
-              border: `1px solid ${isSearchFocused ? 'var(--theme-primary)' : 'rgba(255,255,255,0.08)'}`,
+              border: `1px solid ${isSearchFocused ? 'var(--theme-primary)' : 'var(--theme-border)'}`,
               transition: 'all 0.2s',
               boxShadow: isSearchFocused ? `0 0 15px rgba(0,112,255,0.2)` : 'none'
             }}>
@@ -276,13 +324,13 @@ export function DashboardLayout() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => setIsSearchFocused(true)}
                 onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
-                sx={{ color: 'white', fontSize: '0.85rem', flex: 1 }}
+                sx={{ color: 'var(--text-primary)', fontSize: '0.85rem', flex: 1 }}
               />
               {searchQuery && (
                 <IconButton
                   size="small"
                   onClick={() => setSearchQuery('')}
-                  sx={{ color: 'rgba(255,255,255,0.3)', '&:hover': { color: 'white' } }}
+                  sx={{ color: 'var(--text-dim)', '&:hover': { color: 'var(--text-primary)' } }}
                 >
                   <Close sx={{ fontSize: 18 }} />
                 </IconButton>
@@ -296,10 +344,10 @@ export function DashboardLayout() {
                 top: '120%',
                 left: 0,
                 right: 0,
-                bgcolor: 'rgba(11, 19, 38, 0.95)',
+                bgcolor: 'var(--theme-bg)',
                 backdropFilter: 'blur(16px)',
                 borderRadius: 3,
-                border: '1px solid rgba(255,255,255,0.08)',
+                border: '1px solid var(--theme-border)',
                 boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
                 p: 1.5,
                 display: 'flex',
@@ -313,7 +361,7 @@ export function DashboardLayout() {
                       <Typography variant="caption" sx={{ color: 'var(--text-muted)', fontWeight: 700, letterSpacing: 1 }}>
                         RESULTS FOR "{searchQuery.toUpperCase()}"
                       </Typography>
-                      {isSearching && <Typography variant="caption" sx={{ color: 'var(--theme-primary)', animation: 'pulse 1s infinite' }}>SEARCHING...</Typography>}
+                      {isSearching && <Typography variant="caption" sx={{ color: 'var(--theme-primary)', animation: 'pulse 1s infinite' }}>...</Typography>}
                     </Box>
                     {searchResults.length > 0 ? searchResults.map((item) => (
                       <Box key={item.id} onClick={() => saveSearch(searchQuery)} sx={{
@@ -356,7 +404,7 @@ export function DashboardLayout() {
                 ) : (
                   <>
                     <Typography variant="caption" sx={{ color: 'var(--text-muted)', px: 1, py: 0.5, fontWeight: 700, letterSpacing: 1 }}>
-                      RECENT SEARCHES
+                      RECENT
                     </Typography>
                     {recentSearches.length > 0 ? recentSearches.map((s, i) => (
                       <Box key={i} onClick={() => setSearchQuery(s)} sx={{
@@ -408,9 +456,9 @@ export function DashboardLayout() {
               }}
               PaperProps={{
                 sx: {
-                  bgcolor: '#0b1326',
-                  color: 'white',
-                  border: '1px solid rgba(255,255,255,0.08)',
+                  bgcolor: 'var(--theme-bg)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--theme-border)',
                   mt: 1.5,
                   p: 2,
                   minWidth: 240,
@@ -451,7 +499,7 @@ export function DashboardLayout() {
         {/* Content Area */}
         <Box sx={{
           flex: 1,
-          p: 4,
+          p: { xs: 2, md: 4 },
           overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',
@@ -459,12 +507,12 @@ export function DashboardLayout() {
         }}>
           {/* Page Title & Subtext */}
           <Box sx={{ mb: 1 }}>
-            <Typography variant="h4" fontWeight={700} color="white" gutterBottom>
+            <Typography variant={isMobile ? "h5" : "h4"} fontWeight={700} color="var(--text-primary)" gutterBottom>
               {activeTab === 'hub' && 'Clipboard Hub'}
               {activeTab === 'devices' && 'Connected Devices'}
               {activeTab === 'settings' && 'Settings & Privacy'}
             </Typography>
-            <Typography variant="body2" color="rgba(255,255,255,0.5)">
+            <Typography variant="body2" color="var(--text-muted)">
               {activeTab === 'hub' && 'Unified stream of your synchronized assets across all enterprise devices.'}
               {activeTab === 'devices' && 'Manage and monitor your active workspace endpoints in real-time.'}
               {activeTab === 'settings' && 'Configure your environment preferences, security protocols, and data retention policies.'}
@@ -487,10 +535,10 @@ export function DashboardLayout() {
         <Alert
           icon={<Keyboard sx={{ color: "var(--theme-primary)" }} />}
           sx={{
-            bgcolor: '#0b1326',
-            color: 'white',
+            bgcolor: 'var(--theme-bg)',
+            color: 'var(--text-primary)',
             borderRadius: 3,
-            border: '1px solid rgba(0,112,255,0.3)',
+            border: '1px solid var(--theme-border)',
             boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
             fontWeight: 600
           }}
@@ -505,10 +553,10 @@ export function DashboardLayout() {
         onClose={handleSearchMenuClose}
         PaperProps={{
           sx: {
-            bgcolor: '#0f172a',
-            border: '1px solid rgba(255,255,255,0.1)',
+            bgcolor: 'var(--theme-bg)',
+            border: '1px solid var(--theme-border)',
             boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-            '& .MuiMenuItem-root': { color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem' }
+            '& .MuiMenuItem-root': { color: 'var(--text-secondary)', fontSize: '0.85rem' }
           }
         }}
       >

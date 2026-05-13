@@ -10,16 +10,17 @@ async function getUserId(req: Request) {
   const idToken = authHeader.split('Bearer ')[1];
   try {
     const decodedToken = await adminAuth.verifyIdToken(idToken);
-    return decodedToken.uid;
+    return { uid: decodedToken.uid, isAnonymous: decodedToken.firebase?.sign_in_provider === 'anonymous' };
   } catch (error: any) {
     console.error('🔐 Search Auth Verification Failed:', error.message);
-    throw new Error('UNAUTHORIZED');
+    throw new Error('UNAUTHORIZED');  
   }
 }
 
 export async function GET(req: Request) {
   try {
-    const uid = await getUserId(req);
+    const { uid, isAnonymous } = await getUserId(req);
+    if (isAnonymous) return NextResponse.json({ items: [] });
     const { searchParams } = new URL(req.url);
     const query = searchParams.get('q')?.toLowerCase() || '';
 
@@ -31,7 +32,7 @@ export async function GET(req: Request) {
       .where('userId', '==', uid)
       .orderBy('timestamp', 'desc')
       .get();
-      
+
     let items = snap.docs.map(d => ({ id: d.id, ...d.data() })) as ClipboardItem[];
 
     // Filter by query if provided
@@ -39,7 +40,7 @@ export async function GET(req: Request) {
       items = items.filter(item => 
         item.content.toLowerCase().includes(query) ||
         (item.title && item.title.toLowerCase().includes(query)) ||
-        item.type.toLowerCase().includes(query)
+        item.type.toLowerCase().includes(query) 
       );
     }
 

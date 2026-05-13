@@ -127,62 +127,78 @@ export function DeviceMesh() {
       const vData = await vRes.json();
 
       if (vData.token) {
-        // 2. SIGN IN WITH TOKEN
-        const { signInWithCustomToken } = await import('firebase/auth');
-        const { auth: clientAuth } = await import('@/shared/api/firebase');
-        await signInWithCustomToken(clientAuth, vData.token);
-        const realIdToken = await clientAuth.currentUser?.getIdToken();
+        // 2. Store the mesh ID for cross-account visibility (for anonymous users)
+        if (user?.isAnonymous) {
+          localStorage.setItem('clipsy_paired_mesh', vData.targetUid);
+          localStorage.setItem('clipsy_paired_mesh', vData.targetUid);
+          // Force a refresh of the hub listener by broadcasting a custom event if needed
+          window.dispatchEvent(new Event('mesh_sync_update'));
 
-        // 3. Register with Identity
-        const regRes = await fetch('/api/devices', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${realIdToken}`
-          },
-          body: JSON.stringify({
-            deviceId: `manual_${Date.now()}`,
-            name: targetDeviceName,
-            platform: targetDeviceName.toLowerCase().includes('iphone') || targetDeviceName.toLowerCase().includes('android') ? 'mobile' : 'desktop',
-            os: 'Manual Link',
-            browser: 'Clipsy Mesh',
-            syncEnabled: true
-          })
-        });
+          // 3. SIGN IN WITH TOKEN (Optional: some users might want to stay anonymous but linked)
+          // For now, we continue with signing in to ensure full account access
+          const { signInWithCustomToken } = await import('firebase/auth');
+          const { auth: clientAuth } = await import('@/shared/api/firebase');
+          await signInWithCustomToken(clientAuth, vData.token);
+          const realIdToken = await clientAuth.currentUser?.getIdToken();
 
-        if (regRes.ok) {
-          setPairingMode(false);
-          setInputPin('');
-          setTargetDeviceName('');
+          // 3. Register with Identity
+          const regRes = await fetch('/api/devices', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${realIdToken}`
+            },
+            body: JSON.stringify({
+              deviceId: `manual_${Date.now()}`,
+              name: targetDeviceName,
+              platform: targetDeviceName.toLowerCase().includes('iphone') || targetDeviceName.toLowerCase().includes('android') ? 'mobile' : 'desktop',
+              os: 'Manual Link',
+              browser: 'Clipsy Mesh',
+              syncEnabled: true
+            })
+          });
+
+          if (regRes.ok) {
+            setPairingMode(false);
+            setInputPin('');
+            setTargetDeviceName('');
+          }
+        } else {
+          alert('❌ Invalid pairing code. Please check and try again.');
         }
-      } else {
-        alert('❌ Invalid pairing code. Please check and try again.');
       }
     } catch (error) {
       console.error('Pairing failed:', error);
       alert('⚠️ Connectivity error. Please try again.');
     }
   };
+
   if (pairingMode) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 4, gap: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <SyncAlt sx={{ color: "var(--theme-primary)", fontSize: 32 }} />
-          <Typography variant="h5" fontWeight={700}>SyncFlow</Typography>
+          <Typography variant="h5" fontWeight={700} color="var(--text-primary)">SyncFlow</Typography>
         </Box>
-        <Typography variant="body2" color="rgba(255,255,255,0.4)">
+        <Typography variant="body2" color="var(--text-dim)">
           Securely expand your enterprise sync ecosystem by pairing a new hardware node.
         </Typography>
 
-        <Box sx={{ display: 'flex', gap: 3, width: '100%', maxWidth: 900 }}>
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3, width: '100%', maxWidth: 900 }}>
           {/* Scan to Pair */}
-          <Card sx={{ flex: 1, bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 4, border: '1px solid rgba(255,255,255,0.08)' }}>
-            <CardContent sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 4, gap: 3 }}>
-              <Box sx={{ bgcolor: 'rgba(0,112,255,0.1)', p: 1.5, borderRadius: 2 }}>
-                <QrCode sx={{ color: "var(--theme-primary)" }} />
+          <Card sx={{ flex: 1, bgcolor: 'var(--theme-card-bg)', borderRadius: 4, border: '1px solid var(--theme-border)', backdropFilter: 'blur(20px)' }}>
+            <CardContent sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: { xs: 2, md: 4 }, gap: 3 }}>
+              <Box sx={{
+                bgcolor: 'var(--theme-primary)',
+                p: 1.5,
+                borderRadius: 2,
+                display: 'flex',
+                boxShadow: '0 8px 16px rgba(0,112,255,0.3)'
+              }}>
+                <QrCode sx={{ color: "white", fontSize: 20 }} />
               </Box>
-              <Typography variant="h6" fontWeight={600}>Scan to Pair</Typography>
-              <Typography variant="caption" align="center" color="rgba(255,255,255,0.4)">
+              <Typography variant="h6" fontWeight={600} color="var(--text-primary)">Scan to Pair</Typography>
+              <Typography variant="caption" align="center" color="var(--text-muted)">
                 Open the SyncFlow mobile app and scan the encrypted QR code below.
               </Typography>
               <Box sx={{ width: 200, height: 200, bgcolor: 'white', borderRadius: 2, p: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
@@ -204,27 +220,33 @@ export function DeviceMesh() {
                   navigator.clipboard.writeText(url);
                   alert('🔗 Pairing link copied to clipboard!');
                 }}
-                sx={{ color: 'rgba(255,255,255,0.4)', textTransform: 'none', fontSize: '0.7rem' }}
+                sx={{ color: 'var(--text-dim)', textTransform: 'none', fontSize: '0.7rem', '&:hover': { color: 'var(--text-primary)' } }}
               >
                 Copy Pairing Link
               </Button>
-              <Chip label="WAITING FOR SCAN" size="small" sx={{ bgcolor: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)', fontSize: '0.65rem' }} />
+              <Chip label="WAITING FOR SCAN" size="small" sx={{ bgcolor: 'rgba(255,255,255,0.05)', color: 'var(--text-dim)', fontSize: '0.65rem', border: '1px solid var(--theme-border)' }} />
             </CardContent>
           </Card>
 
           {/* Pairing PIN */}
-          <Card sx={{ flex: 1.2, bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 4, border: '1px solid rgba(255,255,255,0.08)' }}>
-            <CardContent sx={{ p: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <Card sx={{ flex: 1.2, bgcolor: 'var(--theme-card-bg)', borderRadius: 4, border: '1px solid var(--theme-border)', backdropFilter: 'blur(20px)' }}>
+            <CardContent sx={{ p: { xs: 2, md: 4 }, display: 'flex', flexDirection: 'column', gap: 3 }}>
               <Box display="flex" justifyContent="space-between" alignItems="center">
                 <Box display="flex" alignItems="center" gap={1.5}>
-                  <Box sx={{ bgcolor: 'rgba(0,112,255,0.1)', p: 1, borderRadius: 1.5 }}>
-                    <Dialpad sx={{ color: "var(--theme-primary)", fontSize: 20 }} />
+                  <Box sx={{
+                    bgcolor: 'var(--theme-primary)',
+                    p: 1,
+                    borderRadius: 1.5,
+                    display: 'flex',
+                    boxShadow: '0 8px 16px rgba(0,112,255,0.3)'
+                  }}>
+                    <Dialpad sx={{ color: "white", fontSize: 20 }} />
                   </Box>
-                  <Typography variant="h6" fontWeight={600}>Pairing PIN</Typography>
+                  <Typography variant="h6" fontWeight={600} color="var(--text-primary)">Pairing PIN</Typography>
                 </Box>
-                <Typography variant="caption" color="rgba(255,255,255,0.2)">OPTION 2</Typography>
+                <Typography variant="caption" color="var(--text-dim)">OPTION 2</Typography>
               </Box>
-              <Typography variant="caption" color="rgba(255,255,255,0.4)">
+              <Typography variant="caption" color="var(--text-muted)">
                 Enter this 6-digit secure code on your device's setup screen to establish a trusted handshake.
               </Typography>
 
@@ -237,7 +259,9 @@ export function DeviceMesh() {
                       width: 50, height: 60,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       bgcolor: 'rgba(255,255,255,0.05)', borderRadius: 2,
-                      fontSize: '1.5rem', fontWeight: 700, border: '1px solid rgba(255,255,255,0.1)'
+                      fontSize: '1.5rem', fontWeight: 700, border: '1px solid var(--theme-border)',
+                      color: 'var(--text-primary)',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
                     }}>
                       {num}
                     </Box>
@@ -245,25 +269,25 @@ export function DeviceMesh() {
                 )}
               </Box>
 
-              <List sx={{ color: 'rgba(255,255,255,0.4)' }}>
+              <List sx={{ color: 'var(--text-muted)' }}>
                 {[
                   'Power on the new SyncFlow Enterprise node and ensure it is connected to the same VLAN.',
                   'Select "Manual Pair" on the device interface and input the 6-digit code provided above.',
                   'Wait for the "Secure Uplink Established" message to appear on your Dashboard.'
                 ].map((text, i) => (
                   <ListItem key={i} disablePadding sx={{ alignItems: 'flex-start', mb: 1.5 }}>
-                    <Box sx={{ minWidth: 20, height: 20, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', mr: 1.5, mt: 0.2 }}>
+                    <Box sx={{ minWidth: 20, height: 20, borderRadius: '50%', border: '1px solid var(--theme-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', mr: 1.5, mt: 0.2, color: 'var(--text-dim)' }}>
                       {i + 1}
                     </Box>
-                    <Typography variant="caption" sx={{ lineHeight: 1.4 }}>{text}</Typography>
+                    <Typography variant="caption" sx={{ lineHeight: 1.4, color: 'var(--text-muted)' }}>{text}</Typography>
                   </ListItem>
                 ))}
               </List>
 
-              <Divider sx={{ borderColor: 'rgba(255,255,255,0.05)', my: 1 }} />
+              <Divider sx={{ borderColor: 'var(--theme-border)', my: 1 }} />
 
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>
+                <Typography variant="caption" sx={{ color: 'var(--text-dim)', fontWeight: 700, letterSpacing: 1 }}>
                   OR ENTER PAIRING CODE MANUALLY
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 2 }}>
@@ -274,11 +298,12 @@ export function DeviceMesh() {
                     onChange={(e) => setInputPin(e.target.value.replace(/\D/g, '').substring(0, 6))}
                     InputProps={{
                       sx: {
-                        bgcolor: 'rgba(255,255,255,0.03)',
+                        bgcolor: 'var(--theme-card-bg)',
                         borderRadius: 2,
-                        color: 'white',
+                        color: 'var(--text-primary)',
                         fontSize: '0.9rem',
-                        '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.1)' }
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: 'var(--theme-border)' },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'var(--theme-primary)' }
                       }
                     }}
                     sx={{ flex: 1 }}
@@ -290,11 +315,12 @@ export function DeviceMesh() {
                     onChange={(e) => setTargetDeviceName(e.target.value)}
                     InputProps={{
                       sx: {
-                        bgcolor: 'rgba(255,255,255,0.03)',
+                        bgcolor: 'var(--theme-card-bg)',
                         borderRadius: 2,
-                        color: 'white',
+                        color: 'var(--text-primary)',
                         fontSize: '0.9rem',
-                        '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.1)' }
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: 'var(--theme-border)' },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'var(--theme-primary)' }
                       }
                     }}
                     sx={{ flex: 1 }}
@@ -321,14 +347,14 @@ export function DeviceMesh() {
                 <Typography
                   variant="caption"
                   onClick={fetchOtp}
-                  sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 0.5, color: 'rgba(255,255,255,0.3)', '&:hover': { color: 'white' } }}
+                  sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 0.5, color: 'var(--text-dim)', '&:hover': { color: 'var(--theme-primary)' } }}
                 >
                   <SyncAlt sx={{ fontSize: 14 }} /> GENERATE NEW PIN
                 </Typography>
                 <Button
                   variant="text"
                   onClick={() => setPairingMode(false)}
-                  sx={{ color: 'rgba(255,255,255,0.4)', textTransform: 'none', fontSize: '0.75rem' }}
+                  sx={{ color: 'var(--text-dim)', textTransform: 'none', fontSize: '0.75rem', '&:hover': { color: '#ef4444' } }}
                 >
                   Cancel
                 </Button>
@@ -340,7 +366,7 @@ export function DeviceMesh() {
         <Typography
           variant="caption"
           onClick={() => setPairingMode(false)}
-          sx={{ cursor: 'pointer', color: 'rgba(255,255,255,0.3)', mt: 2, '&:hover': { color: 'white' } }}
+          sx={{ cursor: 'pointer', color: 'var(--text-dim)', mt: 2, '&:hover': { color: 'var(--theme-primary)' }, fontWeight: 700, letterSpacing: 1 }}
         >
           ← BACK TO DASHBOARD
         </Typography>
@@ -363,11 +389,11 @@ export function DeviceMesh() {
       </Box>
 
       {view === 'grid' ? (
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 3 }}>
           {isLoading ? (
             Array.from({ length: 3 }).map((_, i) => (
               <Card key={i} sx={{ bgcolor: 'rgba(255, 255, 255, 0.03)', backdropFilter: 'blur(24px)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '20px', height: 220 }}>
-                <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <CardContent sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Box sx={{ width: 44, height: 44, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.05)', animation: 'pulse 1.5s infinite' }} />
                     <Box sx={{ width: 60, height: 24, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.05)', animation: 'pulse 1.5s infinite' }} />
@@ -386,7 +412,7 @@ export function DeviceMesh() {
             ))
           ) : devices.map((device: Device) => (
             <Card key={device.id} sx={{ bgcolor: 'rgba(255, 255, 255, 0.03)', backdropFilter: 'blur(24px)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '20px', color: 'white' }}>
-              <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <CardContent sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3 }}>
                 <Box display="flex" justifyContent="space-between" alignItems="flex-start">
                   <Box sx={{ bgcolor: 'rgba(255,255,255,0.05)', p: 1.5, borderRadius: 2 }}>
                     {device.name.includes('Mac') ? <DesktopWindows /> : device.name.includes('iPhone') ? <Smartphone /> : <TabletMac />}
@@ -479,8 +505,17 @@ export function DeviceMesh() {
       )}
 
       {/* Network Activity & Connect New */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 3 }}>
-        <Card sx={{ bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: '20px', border: '1px solid var(--theme-border)' }}>
+      <Box sx={{ 
+        display: 'grid', 
+        gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' }, 
+        gap: 3 
+      }}>
+        <Card sx={{ 
+          bgcolor: 'rgba(255, 255, 255, 0.03)', 
+          borderRadius: '20px', 
+          border: '1px solid var(--theme-border)',
+          minWidth: { xs: '100%', md: 400 }
+        }}>
           <CardContent sx={{ p: 3 }}>
             <Typography variant="body1" fontWeight={600} mb={3} sx={{ color: 'var(--text-primary)' }}>Network Activity Across Devices</Typography>
             <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 120, mb: 2 }}>
@@ -506,6 +541,7 @@ export function DeviceMesh() {
             alignItems: 'center',
             justifyContent: 'center',
             gap: 2,
+            minWidth: { xs: '100%', md: 240 },
             transition: 'all 0.2s',
             '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.04)', borderColor: 'rgba(255,255,255,0.1)' }
           }}

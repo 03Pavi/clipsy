@@ -1,6 +1,7 @@
-import { ContentCopy, Share, Delete, Code, Link as LinkIcon, Description, Palette, Image as ImageIcon, PushPin, ExpandMore, Add, MoreVert, AddPhotoAlternate, Send, CloudDone, CloudOff, Wifi, FormatBold, FormatItalic, FormatUnderlined, Code as CodeIcon, FormatListBulleted, FormatListNumbered } from '@mui/icons-material';
-import { Box, Card, CardContent, CardActions, Typography, IconButton, Chip, Avatar, AvatarGroup, Button, Divider, Snackbar, Alert, Menu, MenuItem, ListItemIcon, ListItemText, TextField, InputAdornment, Switch, Tooltip } from '@mui/material';
-import { useAppSelector } from '@/shared/lib/redux';
+import { ContentCopy, Delete, Link as LinkIcon, Description, Image as ImageIcon, PushPin, MoreVert, AddPhotoAlternate, Send, CloudDone, CloudOff, Wifi, FormatBold, FormatItalic, FormatUnderlined, Code as CodeIcon, FormatListBulleted, FormatListNumbered } from '@mui/icons-material';
+import { Box, Card, CardContent, Typography, IconButton, Chip, Button, Divider, Snackbar, Alert, Menu, MenuItem, ListItemIcon, ListItemText, CircularProgress, Tooltip } from '@mui/material';
+import { useRouter } from 'next/navigation';
+import { useAppSelector, useAppDispatch } from '@/shared/lib/redux';
 import { useState, useEffect } from 'react';
 import { auth, db } from '@/shared/api/firebase';
 import { EditorContent, useEditor } from '@tiptap/react';
@@ -10,6 +11,7 @@ import Underline from '@tiptap/extension-underline';
 import ImageResize from 'tiptap-extension-resize-image';
 
 import { ClipboardItem } from '@/entities/clipboard/model/types';
+import { setItems as setReduxItems } from '@/entities/clipboard/model/slice';
 
 import { useDevice } from '@/entities/device/lib/use-device';
 import { usePresence } from '@/entities/device/lib/use-presence';
@@ -18,6 +20,7 @@ export function ClipboardHub() {
   const { profile } = useDevice();
   usePresence(profile);
 
+  const dispatch = useAppDispatch();
   const [items, setItems] = useState<ClipboardItem[]>([]);
   const [filter, setFilter] = useState('All');
   const [syncMode, setSyncMode] = useState<'global' | 'private'>('global');
@@ -29,13 +32,22 @@ export function ClipboardHub() {
   const [isLoading, setIsLoading] = useState(true);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [activeItemId, setActiveItemId] = useState<null | string>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const router = useRouter();
   const user = useAppSelector(state => state.user.info);
+
+  // Sync local items with Redux
+  useEffect(() => {
+    dispatch(setReduxItems(items));
+  }, [items, dispatch]);
 
   const getHeaders = async () => {
     const token = await auth.currentUser?.getIdToken();
+    const pairedMesh = localStorage.getItem('clipsy_paired_mesh') || 'public_mesh';
     return {
       'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'x-paired-mesh': pairedMesh
     };
   };
 
@@ -125,6 +137,14 @@ export function ClipboardHub() {
   useEffect(() => {
     if (!user) return;
 
+    // LOAD LOCAL ITEMS FOR ANONYMOUS
+    if (user.isAnonymous) {
+      const local = localStorage.getItem(`clipsy_anon_${user.uid}`);
+      if (local) {
+        setItems(JSON.parse(local));
+      }
+    }
+
     // Real-time Clipboard Listener
     console.info('🔗 [Firebase Sync] Initializing listener for UID:', user.uid);
 
@@ -132,7 +152,7 @@ export function ClipboardHub() {
       collection(db, 'clipboard'),
       where('userId', '==', user.uid),
       orderBy('timestamp', 'desc'),
-      limit(10)
+      limit(20)
     );
 
     const unsubscribeClips = onSnapshot(qClips, (snapshot) => {
@@ -199,6 +219,15 @@ export function ClipboardHub() {
   };
 
   const handleDelete = async (id: string) => {
+    if (user?.isAnonymous) {
+      setItems(prev => {
+        const updated = prev.filter(item => item.id !== id);
+        localStorage.setItem(`clipsy_anon_${user.uid}`, JSON.stringify(updated));
+        return updated;
+      });
+      setMenuAnchor(null);
+      return;
+    }
     try {
       const res = await fetch(`/api/clipboard?id=${id}`, {
         method: 'DELETE',
@@ -215,6 +244,15 @@ export function ClipboardHub() {
   };
 
   const handleTogglePin = async (id: string, currentPin: boolean) => {
+    if (user?.isAnonymous) {
+      setItems(prev => {
+        const updated = prev.map(item => item.id === id ? { ...item, isPinned: !currentPin } : item);
+        localStorage.setItem(`clipsy_anon_${user.uid}`, JSON.stringify(updated));
+        return updated;
+      });
+      setMenuAnchor(null);
+      return;
+    }
     try {
       const res = await fetch('/api/clipboard', {
         method: 'PATCH',
@@ -254,28 +292,41 @@ export function ClipboardHub() {
       timestamp: Date.now()
     };
 
-    // OPTIMISTIC UPDATE: Put it at the top immediately
-    setItems(prev => [{ id: `temp-${Date.now()}`, ...clipData } as any, ...prev]);
+    // OPTIMISTIC UPDATE
+    const tempId = `temp-${Date.now()}`;
+    const newItem = { id: tempId, ...clipData, isTransient: !!user.isAnonymous };
+
+    // SAVE TO LOCAL STORAGE AND UPDATE STATE IF ANONYMOUS (LIMIT 3)
+    if (user.isAnonymous) {
+      setItems(prev => {
+        // Filter out existing transient items if we are adding a new one and near limit
+        const updated = [newItem as any, ...prev].slice(0, 3);
+        localStorage.setItem(`clipsy_anon_${user.uid}`, JSON.stringify(updated));
+        return updated;
+      });
+    } else {
+      setItems(prev => [newItem as any, ...prev]);
+    }
 
     setIsSyncing(true);
     try {
       const res = await fetch('/api/clipboard', {
         method: 'POST',
         headers: await getHeaders(),
-        body: JSON.stringify(clipData)
+        body: JSON.stringify({ ...clipData, isTransient: !!user.isAnonymous })
       });
 
       if (res.ok) {
         editor.commands.setContent('');
         setNewContent('');
-        // fetchItems() removed, onSnapshot handles live updates
       } else {
         const errData = await res.json();
-        setErrorMsg(errData.error || 'Sync failed');
+        // If it's anonymous and failed, we still have it locally so it's fine, but log it
+        if (!user.isAnonymous) setErrorMsg(errData.error || 'Sync failed');
       }
     } catch (error: any) {
       console.error('Add failed:', error);
-      setErrorMsg('Network error: Cloud unreachable');
+      if (!user.isAnonymous) setErrorMsg('Network error: Cloud unreachable');
     } finally {
       setIsSyncing(false);
     }
@@ -337,7 +388,7 @@ export function ClipboardHub() {
   };
 
   return (
-    <Box>
+    <Box sx={{ pb: 8 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h6" fontWeight={700}>Clipboard Hub</Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -361,10 +412,38 @@ export function ClipboardHub() {
         </Box>
       </Box>
 
+      {user?.isAnonymous && (
+        <Alert
+          severity="warning"
+          variant="outlined"
+          sx={{
+            mb: 3,
+            bgcolor: 'rgba(245, 158, 11, 0.05)',
+            borderColor: 'rgba(245, 158, 11, 0.2)',
+            color: '#f59e0b',
+            borderRadius: 3,
+            '& .MuiAlert-icon': { color: '#f59e0b' }
+          }}
+          action={
+            <Button
+              color="inherit"
+              size="small"
+              sx={{ textTransform: 'none', fontWeight: 600 }}
+              onClick={() => router.push('/auth/login?mode=signin')}
+              disabled={authLoading}
+            >
+              {authLoading ? <CircularProgress size={20} /> : 'Sign In / Migrate'}
+            </Button>
+          }
+        >
+          <Typography variant="body2" fontWeight={600}>Incognito Session Active</Typography>
+          <Typography variant="caption">Activate your mesh identity to sync clips across devices!</Typography>
+        </Alert>
+      )}
+
       <Box sx={{ mb: 4 }}>
         <Box sx={{
-          maxWidth: "calc(100vw - 340px)",
-          mx: 'auto',
+          width: '100%',
           bgcolor: '#050914',
           borderRadius: 4,
           border: '1px solid rgba(255,255,255,0.08)',
@@ -376,54 +455,66 @@ export function ClipboardHub() {
           }
         }}>
           {editor && (
-            <Box>
-              <Box sx={{ borderBottom: '1px solid rgba(255,255,255,0.1)', bgcolor: 'rgba(255,255,255,0.05)' }}>
+            <Box sx={{ bgcolor: "var(--theme-bg)", width: "100%" }}>
+              <Box sx={{ borderBottom: '1px solid var(--theme-bg)', bgcolor: 'rgba(255,255,255,0.05)' }}>
                 <Box sx={{ display: 'flex', gap: 0.5, p: 0.5, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <IconButton
-                    size="small"
-                    onClick={() => editor.chain().focus().toggleBold().run()}
-                    sx={{ color: editor.isActive('bold') ? "var(--theme-primary)" : 'rgba(255,255,255,0.7)', bgcolor: editor.isActive('bold') ? 'rgba(0,112,255,0.1)' : 'transparent', '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
-                  >
-                    <FormatBold fontSize="small" />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    onClick={() => editor.chain().focus().toggleItalic().run()}
-                    sx={{ color: editor.isActive('italic') ? "var(--theme-primary)" : 'rgba(255,255,255,0.7)', bgcolor: editor.isActive('italic') ? 'rgba(0,112,255,0.1)' : 'transparent', '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
-                  >
-                    <FormatItalic fontSize="small" />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    onClick={() => editor.chain().focus().toggleUnderline().run()}
-                    sx={{ color: editor.isActive('underline') ? "var(--theme-primary)" : 'rgba(255,255,255,0.7)', bgcolor: editor.isActive('underline') ? 'rgba(0,112,255,0.1)' : 'transparent', '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
-                  >
-                    <FormatUnderlined fontSize="small" />
-                  </IconButton>
+                  <Tooltip title="Bold (⌘+B)">
+                    <IconButton
+                      size="small"
+                      onClick={() => editor.chain().focus().toggleBold().run()}
+                      sx={{ color: editor.isActive('bold') ? "var(--theme-primary)" : 'rgba(255,255,255,0.7)', bgcolor: editor.isActive('bold') ? 'rgba(0,112,255,0.1)' : 'transparent', '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
+                    >
+                      <FormatBold fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Italic (⌘+I)">
+                    <IconButton
+                      size="small"
+                      onClick={() => editor.chain().focus().toggleItalic().run()}
+                      sx={{ color: editor.isActive('italic') ? "var(--theme-primary)" : 'rgba(255,255,255,0.7)', bgcolor: editor.isActive('italic') ? 'rgba(0,112,255,0.1)' : 'transparent', '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
+                    >
+                      <FormatItalic fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Underline (⌘+U)">
+                    <IconButton
+                      size="small"
+                      onClick={() => editor.chain().focus().toggleUnderline().run()}
+                      sx={{ color: editor.isActive('underline') ? "var(--theme-primary)" : 'rgba(255,255,255,0.7)', bgcolor: editor.isActive('underline') ? 'rgba(0,112,255,0.1)' : 'transparent', '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
+                    >
+                      <FormatUnderlined fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
 
                   <Divider orientation="vertical" flexItem sx={{ mx: 1, borderColor: 'rgba(255,255,255,0.1)', height: 20, my: 'auto' }} />
 
-                  <IconButton
-                    size="small"
-                    onClick={() => editor.chain().focus().toggleCode().run()}
-                    sx={{ color: editor.isActive('code') ? "var(--theme-primary)" : 'rgba(255,255,255,0.7)', bgcolor: editor.isActive('code') ? 'rgba(0,112,255,0.1)' : 'transparent', '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
-                  >
-                    <CodeIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    onClick={() => editor.chain().focus().toggleBulletList().run()}
-                    sx={{ color: editor.isActive('bulletList') ? "var(--theme-primary)" : 'rgba(255,255,255,0.7)', bgcolor: editor.isActive('bulletList') ? 'rgba(0,112,255,0.1)' : 'transparent', '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
-                  >
-                    <FormatListBulleted fontSize="small" />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                    sx={{ color: editor.isActive('orderedList') ? "var(--theme-primary)" : 'rgba(255,255,255,0.7)', bgcolor: editor.isActive('orderedList') ? 'rgba(0,112,255,0.1)' : 'transparent', '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
-                  >
-                    <FormatListNumbered fontSize="small" />
-                  </IconButton>
+                  <Tooltip title="Code Snippet">
+                    <IconButton
+                      size="small"
+                      onClick={() => editor.chain().focus().toggleCode().run()}
+                      sx={{ color: editor.isActive('code') ? "var(--theme-primary)" : 'rgba(255,255,255,0.7)', bgcolor: editor.isActive('code') ? 'rgba(0,112,255,0.1)' : 'transparent', '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
+                    >
+                      <CodeIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Bullet List">
+                    <IconButton
+                      size="small"
+                      onClick={() => editor.chain().focus().toggleBulletList().run()}
+                      sx={{ color: editor.isActive('bulletList') ? "var(--theme-primary)" : 'rgba(255,255,255,0.7)', bgcolor: editor.isActive('bulletList') ? 'rgba(0,112,255,0.1)' : 'transparent', '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
+                    >
+                      <FormatListBulleted fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Ordered List">
+                    <IconButton
+                      size="small"
+                      onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                      sx={{ color: editor.isActive('orderedList') ? "var(--theme-primary)" : 'rgba(255,255,255,0.7)', bgcolor: editor.isActive('orderedList') ? 'rgba(0,112,255,0.1)' : 'transparent', '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
+                    >
+                      <FormatListNumbered fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
 
                   <Divider orientation="vertical" flexItem sx={{ mx: 1, borderColor: 'rgba(255,255,255,0.1)', height: 20, my: 'auto' }} />
 
@@ -451,57 +542,59 @@ export function ClipboardHub() {
               }}>
                 <EditorContent editor={editor} />
               </Box>
+              <Box sx={{ p: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: 'rgba(255,255,255,0.02)' }}>
+                <Typography variant="caption" color="rgba(255,255,255,0.3)">
+                  {newContent.length} characters {user?.isAnonymous && '[3 Item Limit]'}
+                </Typography>
+                <Button
+                  variant="contained"
+                  onClick={handleAddClip}
+                  disabled={!newContent.trim() && !hasMedia}
+                  startIcon={<Send sx={{ fontSize: 16 }} />}
+                  sx={{
+                    bgcolor: 'var(--theme-primary)',
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    px: 3
+                  }}
+                >
+                  Sync to Cloud
+                </Button>
+              </Box>
             </Box>
           )}
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', p: 1.5, borderTop: '1px solid rgba(255,255,255,0.05)', bgcolor: 'rgba(255,255,255,0.02)' }}>
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.2)' }}>
-                {newContent.length} characters
-              </Typography>
-              <Button
-                onClick={handleAddClipWithReset}
-                variant="contained"
-                disabled={!newContent.trim() && !hasMedia}
-                startIcon={<Send fontSize="small" />}
-                sx={{
-                  bgcolor: "var(--theme-primary)",
-                  borderRadius: 2,
-                  textTransform: 'none',
-                  px: 4,
-                  fontWeight: 600,
-                  boxShadow: '0 4px 14px rgba(0,112,255,0.4)'
-                }}
-              >
-                Sync to Cloud
-              </Button>
-            </Box>
-          </Box>
         </Box>
+      </Box>
 
-        <Box sx={{ display: 'flex', gap: 1, mt: 3, justifyContent: 'start' }}>
-          {['All', 'Text', 'Links', 'Images'].map((label) => (
-            <Chip
-              key={label}
-              label={label}
-              onClick={() => setFilter(label)}
-              sx={{
-                bgcolor: filter === label ? "var(--theme-primary)" : 'rgba(255,255,255,0.05)',
-                color: filter === label ? 'white' : 'rgba(255,255,255,0.4)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                fontWeight: 500,
-                fontSize: '0.75rem',
-                '&:hover': { bgcolor: filter === label ? '#0062e3' : 'rgba(255,255,255,0.1)' }
-              }}
-            />
-          ))}
-        </Box>
+      {/* Filter Tabs */}
+      <Box sx={{ display: 'flex', gap: 1.5, mb: 4, overflowX: 'auto', pb: 1, '&::-webkit-scrollbar': { display: 'none' } }}>
+        {['All', 'Text', 'Links', 'Images'].map((label) => (
+          <Button
+            key={label}
+            onClick={() => setFilter(label)}
+            sx={{
+              borderRadius: 10,
+              px: 3,
+              py: 0.8,
+              textTransform: 'none',
+              fontWeight: 600,
+              fontSize: '0.85rem',
+              bgcolor: filter === label ? 'var(--theme-primary)' : 'rgba(255,255,255,0.05)',
+              color: filter === label ? 'white' : 'var(--text-secondary)',
+              border: '1px solid',
+              borderColor: filter === label ? 'var(--theme-primary)' : 'rgba(255,255,255,0.1)',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {label}
+          </Button>
+        ))}
       </Box>
 
       <Box sx={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gridAutoRows: 'minmax(160px, auto)',
-        gridAutoFlow: 'dense',
+        gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' },
         gap: 3
       }}>
         {isLoading ? (
@@ -524,144 +617,54 @@ export function ClipboardHub() {
             <Typography variant="body1">No clips found. Start by syncing something above!</Typography>
           </Box>
         ) : (
-          filteredItems.map((item: ClipboardItem) => (
+          filteredItems.map((item) => (
             <Card
               key={item.id}
               sx={{
                 bgcolor: 'rgba(255, 255, 255, 0.03)',
-                backdropFilter: 'blur(24px)',
+                borderRadius: 4,
                 border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '20px',
-                color: 'white',
-                position: 'relative',
-                display: 'flex',
-                flexDirection: 'column',
-                gridColumn: item.type === 'code' || item.type === 'doc' ? 'span 2' : 'span 1',
-                gridRow: item.type === 'image' ? 'span 2' : 'span 1',
-                transition: 'transform 0.2s, box-shadow 0.2s',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 '&:hover': {
+                  bgcolor: 'rgba(255, 255, 255, 0.06)',
                   transform: 'translateY(-4px)',
-                  boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)'
+                  borderColor: 'rgba(255, 255, 255, 0.15)',
+                  boxShadow: '0 12px 24px rgba(0,0,0,0.3)'
                 }
               }}
             >
-              <CardContent sx={{ p: 3, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                  <Box display="flex" alignItems="center" gap={1.5}>
-                    <Box sx={{ bgcolor: 'rgba(0,112,255,0.1)', p: 1, borderRadius: 1.5, display: 'flex', position: 'relative' }}>
-                      {item.type === 'code' && <Code sx={{ color: "var(--theme-primary)", fontSize: 18 }} />}
-                      {item.type === 'link' && <LinkIcon sx={{ color: "var(--theme-primary)", fontSize: 18 }} />}
-                      {item.type === 'image' && <ImageIcon sx={{ color: "var(--theme-primary)", fontSize: 18 }} />}
-                      {(item.type === 'doc' || item.type === 'text') && <Description sx={{ color: "var(--theme-primary)", fontSize: 18 }} />}
-                      {item.type === 'palette' && <Palette sx={{ color: "var(--theme-primary)", fontSize: 18 }} />}
-                      {item.isPinned && (
-                        <PushPin sx={{
-                          position: 'absolute',
-                          top: -6,
-                          right: -6,
-                          fontSize: 14,
-                          color: '#ff3d00',
-                          bgcolor: '#0f172a',
-                          borderRadius: '50%',
-                          p: 0.2,
-                          border: '1px solid rgba(255,255,255,0.1)'
-                        }} />
-                      )}
+              <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Box sx={{ bgcolor: 'rgba(255, 255, 255, 0.05)', p: 1.2, borderRadius: 2.5, display: 'flex', color: 'var(--theme-primary)' }}>
+                      {item.type === 'text' && <Description fontSize="small" />}
+                      {item.type === 'link' && <LinkIcon fontSize="small" />}
+                      {item.type === 'image' && <ImageIcon fontSize="small" />}
                     </Box>
-                    <Box>
-                      <Typography variant="body2" fontWeight={600}>{item.title || item.content.split('\n')[0].substring(0, 30)}</Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Chip
-                          icon={(item as any).sourceDeviceId === profile?.deviceId ? <CloudDone sx={{ fontSize: '0.7rem !important' }} /> : <Wifi sx={{ fontSize: '0.7rem !important' }} />}
-                          label={(item as any).sourceDeviceId === profile?.deviceId ? 'This Device' : 'Remote Mesh'}
-                          size="small"
-                          sx={{ bgcolor: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)', fontSize: '0.55rem', height: 18 }}
-                        />
-                        <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.3)' }}>{formatTime(item.timestamp)}</Typography>
+                    {item.isPinned && (
+                      <Box sx={{ bgcolor: 'rgba(255, 61, 0, 0.1)', p: 1.2, borderRadius: 2.5, display: 'flex', color: '#ff3d00' }}>
+                        <PushPin fontSize="small" />
                       </Box>
-                    </Box>
+                    )}
                   </Box>
-                  <IconButton
-                    size="small"
-                    onClick={(e) => handleMenuOpen(e, item.id)}
-                    sx={{ color: 'rgba(255,255,255,0.2)', '&:hover': { color: 'white', bgcolor: 'rgba(255,255,255,0.05)' } }}
-                  >
-                    <MoreVert sx={{ fontSize: 18 }} />
+                  <IconButton size="small" onClick={(e) => handleMenuOpen(e, item.id)} sx={{ color: 'rgba(255,255,255,0.3)' }}>
+                    <MoreVert fontSize="small" />
                   </IconButton>
                 </Box>
 
-                <Box sx={{ flex: 1 }}>
-                  {item.type === 'code' && (
-                    <Box sx={{
-                      bgcolor: '#050914',
-                      p: 2,
-                      borderRadius: 2,
-                      fontFamily: 'monospace',
-                      fontSize: '0.75rem',
-                      color: 'rgba(255,255,255,0.7)',
-                      whiteSpace: 'pre-wrap',
-                      border: '1px solid rgba(255,255,255,0.05)',
-                      height: '100%',
-                      maxHeight: 240,
-                      overflow: 'hidden'
-                    }}>
-                      {item.content}
-                    </Box>
-                  )}
+                {item.type === 'image' ? (
+                  <Box sx={{ width: '100%', height: 120, borderRadius: 2, overflow: 'hidden', mb: 1 }}>
+                    <img src={item.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </Box>
+                ) : (
+                  <Typography variant="body2" sx={{ color: 'var(--text-primary)', fontWeight: 600, mb: 1, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {item.content}
+                  </Typography>
+                )}
 
-                  {item.type === 'link' && (
-                    <Box>
-                      <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>{item.title}</Typography>
-                      <Typography variant="caption" sx={{ color: "var(--theme-primary)", display: 'block', wordBreak: 'break-all' }}>{item.content}</Typography>
-                    </Box>
-                  )}
-
-                  {item.type === 'image' && (
-                    <Box sx={{
-                      width: '100%',
-                      flex: 1,
-                      minHeight: 200,
-                      bgcolor: 'rgba(0,0,0,0.3)',
-                      borderRadius: 2,
-                      mt: 1,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      overflow: 'hidden'
-                    }}>
-                      <Box
-                        component="img"
-                        src={item.fileUrl || item.imageUrl || "https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=400&auto=format&fit=crop"}
-                        sx={{ width: '100%', flex: 1, objectFit: 'cover', opacity: 0.8 }}
-                      />
-                      <Box sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.4)' }}>
-                        <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <ImageIcon sx={{ fontSize: 14 }} /> {item.content}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  )}
-                  {item.type === 'doc' && (
-                    <Box>
-                      <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>{item.content}</Typography>
-                      <Box display="flex" justifyContent="space-between" alignItems="center" mt={3}>
-                        <Avatar src={user?.avatarUrl || ''} sx={{ width: 24, height: 24, border: '1px solid #050914' }}>
-                          {user?.name?.[0]}
-                        </Avatar>
-                        <Box sx={{ bgcolor: 'rgba(0, 112, 255, 1)', p: 0.5, borderRadius: 1.5, display: 'flex' }}>
-                          <Add sx={{ color: 'white', fontSize: 20 }} />
-                        </Box>
-                      </Box>
-                    </Box>
-                  )}
-
-                  {item.type === 'palette' && (
-                    <Box display="flex" gap={1} mt={1}>
-                      {item.content.split(',').map((color: string) => (
-                        <Box key={color} sx={{ bgcolor: color, width: 44, height: 44, borderRadius: 1.5, border: '1px solid rgba(255,255,255,0.1)' }} />
-                      ))}
-                    </Box>
-                  )}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
+                  <Typography variant="caption" sx={{ color: 'var(--text-muted)' }}>{formatTime(item.timestamp)}</Typography>
+                  {item.isTransient && <Chip label="TRANSIENT" size="small" sx={{ height: 16, fontSize: '0.6rem', bgcolor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }} />}
                 </Box>
               </CardContent>
             </Card>
@@ -675,10 +678,10 @@ export function ClipboardHub() {
         onClose={handleMenuClose}
         PaperProps={{
           sx: {
-            bgcolor: '#0f172a',
-            border: '1px solid rgba(255,255,255,0.1)',
+            bgcolor: 'var(--theme-bg)',
+            border: '1px solid var(--theme-border)',
             boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-            '& .MuiMenuItem-root': { color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem' }
+            '& .MuiMenuItem-root': { color: 'var(--text-secondary)', fontSize: '0.85rem' }
           }
         }}
       >
