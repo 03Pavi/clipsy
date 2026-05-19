@@ -350,6 +350,7 @@ export default function DashboardPage() {
                 placeholder="Room Name (Optional)"
                 variant="outlined"
                 value={roomName}
+                inputProps={{ maxLength: 20 }}
                 onChange={(e) => setRoomName(e.target.value)}
                 disabled={user.isAnonymous && syncedRooms.length >= 1}
                 sx={{ mb: 2 }}

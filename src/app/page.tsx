@@ -1,5 +1,5 @@
 'use client';
-import { Box, Button, CircularProgress, Container, Typography } from '@mui/material';
+import { Box, CircularProgress, Container, Typography } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../hooks/use-auth';
 import { useEffect } from 'react';

@@ -112,28 +112,6 @@ export function ClipboardHub() {
     }
   });
 
-  const fetchItems = async () => {
-    if (!user) return;
-    try {
-      const res = await fetch('/api/clipboard', {
-        headers: await getHeaders()
-      });
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-      const data = await res.json();
-      if (data.items) {
-        setItems(data.items);
-        setDbStatus('online');
-        setErrorMsg(null);
-      }
-    } catch (error) {
-      console.error('Fetch failed:', error);
-      setDbStatus('offline');
-      setErrorMsg('Failed to fetch clipboard items');
-    }
-  };
-
   useEffect(() => {
     if (!user) return;
 
@@ -381,10 +359,6 @@ export function ClipboardHub() {
       }
     };
     input.click();
-  };
-
-  const handleAddClipWithReset = async () => {
-    await handleAddClip();
   };
 
   return (

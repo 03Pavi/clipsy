@@ -3,11 +3,20 @@ import { db } from '../../config/firebase-client';
 import { Room } from '../../types/room.types';
 import { COLLECTIONS } from '../../constants/firebase.constants';
 import { generateSyncCode } from '../../lib/helpers/generate-sync-code';
-import { ROOM_SYNC_CODE_LENGTH } from '../../constants/room.constants';
+import { ROOM_SYNC_CODE_LENGTH, ROOM_NAME_MAX_LENGTH } from '../../constants/room.constants';
 import { deviceStorage } from '../../lib/device/device-storage';
 import { getDeviceName } from '../../lib/device/get-device-name';
 
 export async function createRoom(userId: string, name: string): Promise<Room> {
+  const trimmedName = name.trim();
+
+  if (!trimmedName) {
+    throw new Error('Room name is required');
+  }
+
+  if (trimmedName.length > ROOM_NAME_MAX_LENGTH) {
+    throw new Error(`Room name must be ${ROOM_NAME_MAX_LENGTH} characters or less`);
+  }
   const roomsRef = collection(db, COLLECTIONS.ROOMS);
   const roomId = doc(roomsRef).id;
   
@@ -26,7 +35,7 @@ export async function createRoom(userId: string, name: string): Promise<Room> {
 
   const newRoom: Room = {
     id: roomId,
-    name,
+    name: trimmedName,
     syncCode,
     createdBy: userId,
     createdAt: Date.now(),

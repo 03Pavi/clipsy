@@ -1,7 +1,5 @@
-import { storage, db } from './firebase';
+import { storage } from './firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-
 export interface UploadProgress {
   progress: number;
   status: 'uploading' | 'success' | 'error';

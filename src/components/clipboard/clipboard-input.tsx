@@ -39,7 +39,7 @@ export default function ClipboardInput({ roomId }: { roomId: string }) {
       await createClipboardItem({
         roomId,
         type: 'text',
-        content: editor.getHTML() || '',
+        content: editor.getHTML(),
         createdByUserId: user.uid,
         createdByDeviceId: deviceStorage.getDeviceId(),
         createdAt: Date.now()
