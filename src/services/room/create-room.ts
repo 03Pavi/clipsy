@@ -7,7 +7,7 @@ import { ROOM_SYNC_CODE_LENGTH, ROOM_NAME_MAX_LENGTH } from '../../constants/roo
 import { deviceStorage } from '../../lib/device/device-storage';
 import { getDeviceName } from '../../lib/device/get-device-name';
 
-export async function createRoom(userId: string, name: string): Promise<Room> {
+export async function createRoom(userId: string, name: string, isPrivate = false): Promise<Room> {
   const trimmedName = name.trim();
 
   if (!trimmedName) {
@@ -40,6 +40,7 @@ export async function createRoom(userId: string, name: string): Promise<Room> {
     createdBy: userId,
     createdAt: Date.now(),
     updatedAt: Date.now(),
+    isPrivate,
   };
 
   await setDoc(doc(db, COLLECTIONS.ROOMS, roomId), newRoom);
@@ -56,6 +57,16 @@ export async function createRoom(userId: string, name: string): Promise<Room> {
     deviceName: getDeviceName(),
     joinedAt: Date.now(),
     role: 'owner'
+  });
+
+  // add to user's joinedRooms history
+  await setDoc(doc(db, 'users', userId, 'joinedRooms', roomId), {
+    id: roomId,
+    name: trimmedName,
+    syncCode,
+    joinedAt: Date.now(),
+    createdBy: userId,
+    isPrivate
   });
 
   return newRoom;

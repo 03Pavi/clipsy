@@ -6,6 +6,7 @@ import { formatDate } from '../../lib/helpers/format-date';
 import Editor from '@monaco-editor/react';
 import { useAuthStore } from '../../stores/auth-store';
 import { deleteClipboardItem } from '../../services/clipboard/delete-clipboard-item';
+import { decodeImage } from '../../lib/image-utils';
 
 export default function ClipboardItem({ item }: { item: ClipboardItemType }) {
   const { user } = useAuthStore();
@@ -20,11 +21,32 @@ export default function ClipboardItem({ item }: { item: ClipboardItemType }) {
     setAnchorEl(null);
   };
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
     if (item.type === 'text' || item.type === 'link' || item.type === 'code') {
-      // If it's HTML from Tiptap, we should strip tags or just copy content
-      // For now we just copy raw content
       navigator.clipboard.writeText(item.content.replace(/<[^>]*>?/gm, ''));
+    } else if (item.type === 'image') {
+      if (item.content.length > 100) {
+        try {
+          const byteCharacters = atob(item.content);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: item.mimeType || 'image/webp' });
+
+          await navigator.clipboard.write([
+            new (window as any).ClipboardItem({
+              [blob.type]: blob
+            })
+          ]);
+        } catch (err) {
+          console.error('Failed to write true image blob, falling back to data URL text copy:', err);
+          navigator.clipboard.writeText(decodeImage({ base64: item.content, mimeType: item.mimeType }));
+        }
+      } else if (item.fileUrl) {
+        navigator.clipboard.writeText(item.fileUrl);
+      }
     } else if (item.fileUrl) {
       navigator.clipboard.writeText(item.fileUrl);
     }
@@ -74,8 +96,12 @@ export default function ClipboardItem({ item }: { item: ClipboardItemType }) {
           {getIcon()}
         </Box>
         <Box flex={1} overflow="hidden">
-          {item.type === 'image' && item.fileUrl ? (
-            <img src={item.fileUrl} alt="clipboard" style={{ maxHeight: 100, borderRadius: 4, objectFit: 'contain' }} />
+          {item.type === 'image' ? (
+            <img 
+              src={item.content.length > 100 ? decodeImage({ base64: item.content, mimeType: item.mimeType }) : item.fileUrl} 
+              alt="clipboard" 
+              style={{ maxHeight: 200, maxWidth: '100%', borderRadius: 8, objectFit: 'contain' }} 
+            />
           ) : item.type === 'code' ? (
             <Box sx={{ mt: 1, borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
               <Editor
@@ -125,15 +151,23 @@ export default function ClipboardItem({ item }: { item: ClipboardItemType }) {
               }
             }}
           >
-            <MenuItem onClick={() => { handleCopy(); handleClose(); }}>
-              <ListItemIcon>
-                <ContentCopy fontSize="small" />
-              </ListItemIcon>
-              <ListItemText primary="Copy" />
-            </MenuItem>
+            {item.type !== 'image' && (
+              <MenuItem onClick={() => { handleCopy(); handleClose(); }}>
+                <ListItemIcon>
+                  <ContentCopy fontSize="small" />
+                </ListItemIcon>
+                <ListItemText primary="Copy" />
+              </MenuItem>
+            )}
             
-            {(item.type === 'image' || item.type === 'file') && item.fileUrl && (
-              <MenuItem component="a" href={item.fileUrl} target="_blank" download onClick={handleClose}>
+            {(item.type === 'image' || item.type === 'file') && (item.fileUrl || (item.type === 'image' && item.content.length > 100)) && (
+              <MenuItem 
+                component="a" 
+                href={item.type === 'image' && item.content.length > 100 ? decodeImage({ base64: item.content, mimeType: item.mimeType }) : item.fileUrl} 
+                target="_blank" 
+                download={item.type === 'image' ? "clipboard-image.webp" : "download"} 
+                onClick={handleClose}
+              >
                 <ListItemIcon>
                   <Download fontSize="small" />
                 </ListItemIcon>
@@ -141,7 +175,7 @@ export default function ClipboardItem({ item }: { item: ClipboardItemType }) {
               </MenuItem>
             )}
             
-            {user?.uid === item.createdByUserId && (
+            {(user?.uid === item.createdByUserId || item.type === 'text' || item.type === 'code') && (
               <MenuItem onClick={() => { handleDelete(); handleClose(); }} sx={{ color: 'error.main' }}>
                 <ListItemIcon sx={{ color: 'inherit' }}>
                   <DeleteOutline fontSize="small" />

@@ -12,6 +12,8 @@ export interface ClipboardItem {
   imageUrl?: string;                  // Legacy image URL fallback
   fileName?: string;
   fileSize?: number;
+  width?: number;
+  height?: number;
   metadata?: string;                  // JSON string for additional properties
   isPinned: boolean;                  // Priority status
   isTransient?: boolean;               // For temporary, mesh-synced items

@@ -2,30 +2,38 @@
 import { useState } from 'react';
 import { GoogleAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
 import { auth } from '../../../config/firebase-client';
-import { Box, Button, Typography, Alert, Divider } from '@mui/material';
+import { Box, Button, Typography, Alert, Divider, CircularProgress } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import { InfoOutlined, ArrowCircleRight } from '@mui/icons-material';
 
 export default function LoginPage() {
   const [error, setError] = useState('');
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isIncognitoLoading, setIsIncognitoLoading] = useState(false);
   const router = useRouter();
 
   const handleGoogleLogin = async () => {
+    setIsGoogleLoading(true);
+    setError('');
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
       router.push('/dashboard');
     } catch (err: any) {
       setError(err.message);
+      setIsGoogleLoading(false);
     }
   };
 
   const handleIncognitoLogin = async () => {
+    setIsIncognitoLoading(true);
+    setError('');
     try {
       await signInAnonymously(auth);
       router.push('/dashboard');
     } catch (err: any) {
       setError(err.message);
+      setIsIncognitoLoading(false);
     }
   };
 
@@ -85,6 +93,7 @@ export default function LoginPage() {
           fullWidth
           variant="contained"
           onClick={handleGoogleLogin}
+          disabled={isGoogleLoading || isIncognitoLoading}
           sx={{
             py: 1.8,
             backgroundColor: '#ffffff',
@@ -96,13 +105,27 @@ export default function LoginPage() {
             '&:hover': {
               backgroundColor: '#f0f0f0',
             },
+            '&:disabled': {
+              backgroundColor: 'rgba(255, 255, 255, 0.6)',
+              color: 'rgba(0, 0, 0, 0.5)',
+            },
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: 1.5
           }}
         >
-          <img src="https://www.google.com/favicon.ico" alt="Google" style={{ width: 20, height: 20 }} />
-          Sign in with Google
+          {isGoogleLoading ? (
+            <>
+              <CircularProgress size={20} color="inherit" />
+              Signing in...
+            </>
+          ) : (
+            <>
+              <img src="https://www.google.com/favicon.ico" alt="Google" style={{ width: 20, height: 20 }} />
+              Sign in with Google
+            </>
+          )}
         </Button>
 
         <Box sx={{ width: '100%', my: 3, position: 'relative' }}>
@@ -127,6 +150,7 @@ export default function LoginPage() {
         <Button
           fullWidth
           onClick={handleIncognitoLogin}
+          disabled={isGoogleLoading || isIncognitoLoading}
           sx={{
             py: 2,
             backgroundColor: 'rgba(255,255,255,0.02)',
@@ -135,15 +159,31 @@ export default function LoginPage() {
             color: 'rgba(255,255,255,0.7)',
             fontFamily: 'monospace',
             fontSize: '1.2rem',
-            letterSpacing: '0.5rem',
+            letterSpacing: isIncognitoLoading ? '0.2rem' : '0.5rem',
             transition: 'all 0.2s',
             '&:hover': {
               backgroundColor: 'rgba(255,255,255,0.05)',
               borderColor: 'rgba(255,255,255,0.1)',
-            }
+            },
+            '&:disabled': {
+              backgroundColor: 'rgba(255, 255, 255, 0.01)',
+              borderColor: 'rgba(255, 255, 255, 0.02)',
+              color: 'rgba(255, 255, 255, 0.3)',
+            },
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 1.5
           }}
         >
-          INCOGNITO
+          {isIncognitoLoading ? (
+            <>
+              <CircularProgress size={20} color="inherit" />
+              ENTERING MESH...
+            </>
+          ) : (
+            'INCOGNITO'
+          )}
         </Button>
 
         <Box

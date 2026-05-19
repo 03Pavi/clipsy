@@ -19,10 +19,51 @@ export async function joinRoomBySyncCode(userId: string, syncCode: string): Prom
   const roomId = roomDoc.id;
 
   const deviceId = deviceStorage.getDeviceId();
-  const participantRef = doc(db, `${COLLECTIONS.ROOMS}/${roomId}/${COLLECTIONS.PARTICIPANTS}`, `${userId}_${deviceId}`);
+  const participantId = `${userId}_${deviceId}`;
   
+  // 1. Check if already a participant
+  const participantRef = doc(db, `${COLLECTIONS.ROOMS}/${roomId}/${COLLECTIONS.PARTICIPANTS}`, participantId);
+  const participantSnap = await getDoc(participantRef);
+  
+  if (participantSnap.exists()) {
+    return roomData;
+  }
+
+  // 2. Handle private room access permissions
+  if (roomData.isPrivate && roomData.createdBy !== userId) {
+    const requestRef = doc(db, 'rooms', roomId, 'requests', userId);
+    const requestSnap = await getDoc(requestRef);
+
+    if (!requestSnap.exists()) {
+      await setDoc(requestRef, {
+        userId,
+        userName: getDeviceName(),
+        deviceName: getDeviceName(),
+        requestedAt: Date.now(),
+        status: 'pending'
+      });
+      throw new Error('PRIVATE_ROOM_REQUEST_PENDING');
+    }
+
+    const requestData = requestSnap.data();
+    if (requestData?.status === 'pending') {
+      throw new Error('PRIVATE_ROOM_REQUEST_PENDING');
+    } else if (requestData?.status === 'rejected') {
+      // Re-knock: Reset status back to pending to allow joining again
+      await setDoc(requestRef, {
+        userId,
+        userName: getDeviceName(),
+        deviceName: getDeviceName(),
+        requestedAt: Date.now(),
+        status: 'pending'
+      });
+      throw new Error('PRIVATE_ROOM_REQUEST_PENDING');
+    }
+  }
+
+  // 3. Save participant record
   await setDoc(participantRef, {
-    id: `${userId}_${deviceId}`,
+    id: participantId,
     roomId,
     userId,
     deviceId,
@@ -30,6 +71,16 @@ export async function joinRoomBySyncCode(userId: string, syncCode: string): Prom
     joinedAt: Date.now(),
     role: 'member'
   }, { merge: true });
+
+  // add to user's joinedRooms history
+  await setDoc(doc(db, 'users', userId, 'joinedRooms', roomId), {
+    id: roomId,
+    name: roomData.name,
+    syncCode: roomData.syncCode,
+    joinedAt: Date.now(),
+    createdBy: roomData.createdBy,
+    isPrivate: roomData.isPrivate || false
+  });
 
   return roomData;
 }

@@ -5,4 +5,13 @@ export interface Room {
   createdBy: string;
   createdAt: number;
   updatedAt: number;
+  isPrivate?: boolean;
+  isTemporary?: boolean;
+  activeScreenShare?: {
+    sharerId: string;
+    sharerName: string;
+    active: boolean;
+    type?: 'screen' | 'camera';
+    startedAt: number;
+  };
 }

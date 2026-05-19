@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { Box, Button, Container, TextField, Typography, Paper, Stack, AppBar, Toolbar, IconButton, Avatar, Tooltip } from '@mui/material';
 import { useAuth } from '../../hooks/use-auth';
 import { useSyncRoom } from '../../hooks/use-sync-room';
-import { ArrowForward, AddCircleOutline, Key, ArrowCircleRight, Logout, LightMode, DarkMode, DeleteOutline } from '@mui/icons-material';
+import { ArrowForward, AddCircleOutline, Key, ArrowCircleRight, Logout, LightMode, DarkMode, DeleteOutline, Lock } from '@mui/icons-material';
 import { signOut, deleteUser } from 'firebase/auth';
 import { auth, db } from '../../config/firebase-client';
 import { collection, query, where, getDocs, writeBatch, doc } from 'firebase/firestore';
@@ -16,12 +16,13 @@ import { subscribeUserRooms } from '../../services/room/get-user-rooms';
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { handleJoinRoom, handleCreateRoom, isLoading, error } = useSyncRoom();
+  const { handleJoinRoom, handleCreateRoom, isLoading, error, requestStatus, setRequestStatus } = useSyncRoom();
   const [syncCode, setSyncCode] = useState('');
   const [roomName, setRoomName] = useState('');
   const [showAllRooms, setShowAllRooms] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [syncedRooms, setSyncedRooms] = useState<any[]>([]);
+  const [copiedRoomId, setCopiedRoomId] = useState<string | null>(null);
   const router = useRouter();
   const dispatch = useDispatch();
   const { toggleTheme, mode } = useThemeToggle();
@@ -208,14 +209,23 @@ export default function DashboardPage() {
                   >
                     <DeleteOutline fontSize="small" />
                   </IconButton>
-                  <Typography variant="subtitle1" fontWeight={600} color="text.primary" sx={{ pr: 3 }}>{room.name}</Typography>
-                  <Tooltip title="Copy Sync Code">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pr: 3, mb: 0.5 }}>
+                    <Typography variant="subtitle1" fontWeight={600} color="text.primary" noWrap sx={{ maxWidth: '180px' }}>{room.name}</Typography>
+                    {room.isPrivate && (
+                      <Tooltip title="Private Room">
+                        <Lock sx={{ fontSize: 14, color: 'secondary.main' }} />
+                      </Tooltip>
+                    )}
+                  </Box>
+                  <Tooltip title={copiedRoomId === room.id ? 'Copied!' : 'Copy Sync Code'}>
                     <Typography
                       variant="caption"
                       color="text.secondary"
                       onClick={(e) => {
                         e.stopPropagation();
                         navigator.clipboard.writeText(room.syncCode);
+                        setCopiedRoomId(room.id);
+                        setTimeout(() => setCopiedRoomId(null), 1000);
                       }}
                       sx={{
                         display: 'inline-block',
@@ -355,6 +365,7 @@ export default function DashboardPage() {
                 disabled={user.isAnonymous && syncedRooms.length >= 1}
                 sx={{ mb: 2 }}
               />
+
               <Tooltip title={user.isAnonymous && syncedRooms.length >= 1 ? "Anonymous users can only create 1 active room." : ""}>
                 <span>
                   <Button
@@ -381,6 +392,82 @@ export default function DashboardPage() {
           </Paper>
         </Stack>
       </Container>
+
+      {/* Real-time Door Knocking Overlay */}
+      {requestStatus === 'pending' && (
+        <Box
+          sx={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            bgcolor: 'rgba(0, 0, 0, 0.85)',
+            backdropFilter: 'blur(10px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            p: 3
+          }}
+        >
+          <Paper
+            elevation={0}
+            sx={{
+              p: 5,
+              borderRadius: 4,
+              bgcolor: 'background.paper',
+              border: '1px solid rgba(255,255,255,0.08)',
+              maxWidth: 440,
+              textAlign: 'center',
+              boxShadow: '0 24px 48px rgba(0,0,0,0.5)'
+            }}
+          >
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 64,
+                height: 64,
+                borderRadius: '50%',
+                bgcolor: 'rgba(0, 112, 243, 0.1)',
+                color: 'primary.main',
+                mx: 'auto',
+                mb: 3,
+                animation: 'pulse 1.8s infinite'
+              }}
+            >
+              <Lock sx={{ fontSize: 32 }} />
+            </Box>
+            <Typography variant="h5" fontWeight={700} sx={{ mb: 1, color: 'text.primary' }}>
+              Knocking at the Door...
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 4 }}>
+              This mesh room is <b>Private</b>. A join request has been sent to the room owner. Please wait for approval.
+            </Typography>
+            
+            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setRequestStatus('idle');
+                }}
+                sx={{
+                  px: 4,
+                  py: 1,
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  borderColor: 'divider',
+                  color: 'text.secondary'
+                }}
+              >
+                Cancel Request
+              </Button>
+            </Box>
+          </Paper>
+        </Box>
+      )}
     </Box>
   );
 }

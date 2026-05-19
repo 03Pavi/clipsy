@@ -7,6 +7,7 @@ import { deviceStorage } from '../../lib/device/device-storage';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Editor from '@monaco-editor/react';
+import { encodeImage } from '../../lib/image-utils';
 
 type InputMode = 'text' | 'code' | 'image';
 
@@ -57,15 +58,27 @@ export default function ClipboardInput({ roomId }: { roomId: string }) {
       });
       setCodeContent('');
     } else if (mode === 'image' && file) {
-      await createClipboardItem({
-        roomId,
-        type: 'image',
-        content: file.name,
-        fileUrl: URL.createObjectURL(file), // Mock URL for local preview until uploaded
-        createdByUserId: user.uid,
-        createdByDeviceId: deviceStorage.getDeviceId(),
-        createdAt: Date.now()
-      });
+      try {
+        const result = await encodeImage({
+          file,
+          quality: 0.5,
+          maxWidth: 700,
+        });
+
+        await createClipboardItem({
+          roomId,
+          type: 'image',
+          content: result.base64,
+          mimeType: result.mimeType,
+          width: result.width,
+          height: result.height,
+          createdByUserId: user.uid,
+          createdByDeviceId: deviceStorage.getDeviceId(),
+          createdAt: Date.now()
+        });
+      } catch (err) {
+        console.error('Failed to compress/encode image:', err);
+      }
       setFile(null);
       setMode('text');
     }

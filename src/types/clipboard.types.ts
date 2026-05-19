@@ -9,6 +9,8 @@ export interface ClipboardItem {
   filePath?: string; // Storage path
   mimeType?: string;
   size?: number;
+  width?: number;
+  height?: number;
   createdByUserId: string;
   createdByDeviceId: string;
   createdAt: number;

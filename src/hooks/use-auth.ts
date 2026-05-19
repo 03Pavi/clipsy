@@ -14,8 +14,8 @@ export function useAuth() {
         const userData: User = {
           uid: firebaseUser.uid,
           email: firebaseUser.email || '',
-          displayName: firebaseUser.displayName,
-          photoURL: firebaseUser.photoURL,
+          displayName: firebaseUser.displayName || 'Anonymous Guest',
+          photoURL: firebaseUser.photoURL || '',
           isAnonymous: firebaseUser.isAnonymous,
         };
         
