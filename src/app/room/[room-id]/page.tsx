@@ -62,7 +62,6 @@ export default function RoomPage() {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', color: 'text.primary', fontFamily: 'Inter, sans-serif' }}>
       <Container maxWidth="lg" sx={{ py: 6 }}>
-
         <Box sx={{ mb: 2 }}>
           <RoomHeader room={room} />
         </Box>

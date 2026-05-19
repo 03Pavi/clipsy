@@ -4,8 +4,9 @@ import { Box, Button, Container, TextField, Typography, Paper, Stack, AppBar, To
 import { useAuth } from '../../hooks/use-auth';
 import { useSyncRoom } from '../../hooks/use-sync-room';
 import { ArrowForward, AddCircleOutline, Key, ArrowCircleRight, Logout, LightMode, DarkMode, DeleteOutline } from '@mui/icons-material';
-import { signOut } from 'firebase/auth';
-import { auth } from '../../config/firebase-client';
+import { signOut, deleteUser } from 'firebase/auth';
+import { auth, db } from '../../config/firebase-client';
+import { collection, query, where, getDocs, writeBatch, doc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useThemeToggle } from '../../components/ui/theme-registry';
 import { useDispatch } from 'react-redux';
@@ -41,19 +42,59 @@ export default function DashboardPage() {
 
   const handleLogout = async () => {
     try {
-      // If anonymous, delete their created rooms & associated data
+      // If anonymous, delete their created rooms, associated data, and delete user account
       if (user.isAnonymous) {
         setIsDeleting(true);
+        
+        // 1. Delete all rooms created by this user
         const deletePromises = syncedRooms.map(room => deleteRoomFromFirebase(room.id));
         await Promise.all(deletePromises);
+
+        // 2. Batch delete all associated firestore documents (devices, clipboard items, user doc)
+        try {
+          const batch = writeBatch(db);
+          
+          // Query devices for user
+          const devicesQuery = query(collection(db, 'devices'), where('userId', '==', user.uid));
+          const devicesSnap = await getDocs(devicesQuery);
+          devicesSnap.forEach((doc) => {
+            batch.delete(doc.ref);
+          });
+
+          // Query clipboard items for user
+          const clipsQuery = query(collection(db, 'clipboard'), where('userId', '==', user.uid));
+          const clipsSnap = await getDocs(clipsQuery);
+          clipsSnap.forEach((doc) => {
+            batch.delete(doc.ref);
+          });
+
+          // Delete user document
+          batch.delete(doc(db, 'users', user.uid));
+
+          await batch.commit();
+        } catch (firestoreErr) {
+          console.warn('⚠️ [Firestore Cleanup Failed]:', firestoreErr);
+        }
+
+        // 3. Delete user account from Firebase Auth
+        if (auth.currentUser) {
+          try {
+            await deleteUser(auth.currentUser);
+          } catch (authErr) {
+            console.error('Error deleting firebase user:', authErr);
+            await signOut(auth);
+          }
+        }
+        
         setIsDeleting(false);
+      } else {
+        await signOut(auth);
       }
 
       // Clear redux persist state and reset store immediately
       await persistor.purge();
       dispatch(resetStore());
 
-      await signOut(auth);
       router.push('/login');
     } catch (err) {
       console.error(err);

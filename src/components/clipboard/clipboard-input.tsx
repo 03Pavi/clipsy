@@ -14,6 +14,7 @@ export default function ClipboardInput({ roomId }: { roomId: string }) {
   const [mode, setMode] = useState<InputMode>('text');
   const [codeContent, setCodeContent] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [editorText, setEditorText] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuthStore();
 
@@ -21,6 +22,9 @@ export default function ClipboardInput({ roomId }: { roomId: string }) {
     extensions: [StarterKit],
     content: '',
     immediatelyRender: false,
+    onUpdate: ({ editor }) => {
+      setEditorText(editor.getText());
+    },
     editorProps: {
       attributes: {
         class: 'tiptap-editor',
@@ -31,16 +35,17 @@ export default function ClipboardInput({ roomId }: { roomId: string }) {
   const handleSend = async () => {
     if (!user) return;
     
-    if (mode === 'text' && editor?.getText().trim()) {
+    if (mode === 'text' && editorText.trim() && editor) {
       await createClipboardItem({
         roomId,
         type: 'text',
-        content: editor.getHTML(),
+        content: editor.getHTML() || '',
         createdByUserId: user.uid,
         createdByDeviceId: deviceStorage.getDeviceId(),
         createdAt: Date.now()
       });
       editor.commands.setContent('');
+      setEditorText('');
     } else if (mode === 'code' && codeContent.trim()) {
       await createClipboardItem({
         roomId,
@@ -52,7 +57,6 @@ export default function ClipboardInput({ roomId }: { roomId: string }) {
       });
       setCodeContent('');
     } else if (mode === 'image' && file) {
-      // Logic for file upload would go here. For now just placeholder to simulate success.
       await createClipboardItem({
         roomId,
         type: 'image',
@@ -184,7 +188,7 @@ export default function ClipboardInput({ roomId }: { roomId: string }) {
           </Box>
           <IconButton 
             onClick={handleSend} 
-            disabled={(mode === 'text' && !editor?.getText().trim()) || (mode === 'code' && !codeContent.trim()) || (mode === 'image' && !file)}
+            disabled={(mode === 'text' && !editorText.trim()) || (mode === 'code' && !codeContent.trim()) || (mode === 'image' && !file)}
             sx={{ 
               bgcolor: 'primary.main', 
               color: 'primary.contrastText', 

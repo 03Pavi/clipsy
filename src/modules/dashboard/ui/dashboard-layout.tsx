@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import { Box, Typography, IconButton, InputBase, Avatar, Popover, Button, Divider, Snackbar, Alert, Menu, MenuItem, ListItemIcon, ListItemText, useMediaQuery, Drawer } from '@mui/material';
 import { Search, NotificationsNone, Logout, Person, Keyboard, History, MoreVert, ContentCopy, Delete, PushPin, Close, Menu as MenuIcon } from '@mui/icons-material';
 import { auth, db } from '@/shared/api/firebase';
-import { signOut } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { signOut, deleteUser } from 'firebase/auth';
+import { doc, onSnapshot, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
+import { deleteRoomFromFirebase } from '@/services/room/delete-room';
 import { useAppDispatch, useAppSelector } from '@/shared/lib/redux';
 import { setPreviewTheme } from '@/entities/user';
 import { ClipboardItem } from '@/entities/clipboard/model/types';
@@ -52,7 +53,54 @@ export function DashboardLayout() {
   };
 
   const handleSignOut = async () => {
-    await signOut(auth);
+    try {
+      if (user?.isAnonymous) {
+        // 1. Find all rooms created by this user
+        const roomsQuery = query(collection(db, 'rooms'), where('createdBy', '==', user.uid));
+        const roomsSnap = await getDocs(roomsQuery);
+        
+        // 2. Delete all rooms
+        const deletePromises = roomsSnap.docs.map(doc => deleteRoomFromFirebase(doc.id));
+        await Promise.all(deletePromises);
+
+        // 3. Batch delete devices, clipboard items, and user doc
+        const batch = writeBatch(db);
+        
+        // Query devices for user
+        const devicesQuery = query(collection(db, 'devices'), where('userId', '==', user.uid));
+        const devicesSnap = await getDocs(devicesQuery);
+        devicesSnap.forEach((doc) => {
+          batch.delete(doc.ref);
+        });
+
+        // Query clipboard items for user
+        const clipsQuery = query(collection(db, 'clipboard'), where('userId', '==', user.uid));
+        const clipsSnap = await getDocs(clipsQuery);
+        clipsSnap.forEach((doc) => {
+          batch.delete(doc.ref);
+        });
+
+        // Delete user document
+        batch.delete(doc(db, 'users', user.uid));
+
+        await batch.commit();
+
+        // 4. Delete user account from Firebase Auth
+        if (auth.currentUser) {
+          try {
+            await deleteUser(auth.currentUser);
+          } catch (authErr) {
+            console.error('Error deleting firebase user:', authErr);
+            await signOut(auth);
+          }
+        }
+      } else {
+        await signOut(auth);
+      }
+    } catch (err) {
+      console.error('Error signing out anonymous user:', err);
+      await signOut(auth);
+    }
     handleClose();
   };
 
