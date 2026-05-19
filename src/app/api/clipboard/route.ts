@@ -20,15 +20,32 @@ async function getUserId(req: Request) {
 export async function GET(req: Request) {
   try {
     const { uid, isAnonymous } = await getUserId(req);
-    
-    // Strictly follow individual user ownership to satisfy security rules
-    const query = adminDb.collection('clipboard').where('userId', '==', uid);
-    
-    const snap = await query.get();
-      
-    const items = snap.docs.map(d => ({ id: d.id, ...d.data() })) as ClipboardItem[];
-    console.log(`✅ [GET /api/clipboard] Success: ${items.length} items found (isAnon: ${isAnonymous})`);
-    return NextResponse.json({ items });
+
+    // Get user's devices to find their room ID
+    const devicesSnap = await adminDb.collection('devices').where('userId', '==', uid).get();
+    const devices = devicesSnap.docs.map(d => d.data());
+    const roomId = devices.find(d => d.roomId)?.roomId;
+
+    let allItems: ClipboardItem[] = [];
+
+    if (roomId) {
+      // Fetch all clipboard items for this room
+      const snap = await adminDb.collection('clipboard')
+        .where('roomId', '==', roomId)
+        .orderBy('timestamp', 'desc')
+        .get();
+      allItems = snap.docs.map(d => ({ id: d.id, ...d.data() })) as ClipboardItem[];
+    } else {
+      // No room - fetch only own items
+      const snap = await adminDb.collection('clipboard')
+        .where('userId', '==', uid)
+        .orderBy('timestamp', 'desc')
+        .get();
+      allItems = snap.docs.map(d => ({ id: d.id, ...d.data() })) as ClipboardItem[];
+    }
+
+    console.log(`✅ [GET /api/clipboard] Success: ${allItems.length} items found (isAnon: ${isAnonymous})`);
+    return NextResponse.json({ items: allItems });
   } catch (e: any) {
     console.error('❌ [GET /api/clipboard] Error:', e.message);
     return NextResponse.json(
@@ -50,10 +67,15 @@ export async function POST(req: Request) {
     }
     console.log('📡 [POST /api/clipboard] Adding item for UID:', uid);
 
+    // Determine room ID from user's devices
+    const devicesSnap = await adminDb.collection('devices').where('userId', '==', uid).get();
+    const devices = devicesSnap.docs.map(d => d.data());
+    const roomId = devices.find(d => d.roomId)?.roomId;
+
     const newItem: Omit<ClipboardItem, 'id'> = {
       userId: uid,
       sourceDeviceId: data.sourceDeviceId || 'unknown',
-      syncLinkId: data.syncLinkId || 'global',
+      syncLinkId: roomId || 'global',
       type: data.type || 'text',
       content: data.content || '',
       title: data.title,
@@ -64,6 +86,7 @@ export async function POST(req: Request) {
       isPinned: false,
       isTransient: !!data.isTransient,
       timestamp: data.timestamp ?? Date.now(),
+      roomId
     };
     
     console.log(`💾 [POST /api/clipboard] Saving to Firestore... (Content Length: ${data.content?.length || 0}, Source: ${newItem.sourceDeviceId})`);
@@ -73,10 +96,17 @@ export async function POST(req: Request) {
 
     // 6. ROLLING HISTORY PRUNING
     try {
-      // Fetch all for this user
-      const snap = await adminDb.collection('clipboard')
-        .where('userId', '==', uid)
-        .get();
+      // Fetch all for this user or room
+      let snap;
+      if (roomId) {
+        snap = await adminDb.collection('clipboard')
+          .where('roomId', '==', roomId)
+          .get();
+      } else {
+        snap = await adminDb.collection('clipboard')
+          .where('userId', '==', uid)
+          .get();
+      }
 
       const limit = isAnonymous ? 3 : 10;
       

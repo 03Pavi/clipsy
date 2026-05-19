@@ -52,7 +52,16 @@ export function DeviceMesh() {
       setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    // Listen for mesh sync updates from cross-account pairing
+    const handleMeshUpdate = () => {
+      setIsLoading(true);
+    };
+    window.addEventListener('mesh_sync_update', handleMeshUpdate);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('mesh_sync_update', handleMeshUpdate);
+    };
   }, [user]);
 
   const handleToggleSync = async (deviceId: string, currentStatus: boolean) => {
@@ -118,7 +127,7 @@ export function DeviceMesh() {
 
   const handleManualPair = async () => {
     try {
-      // 1. Verify the code
+      // 1. Verify the code and get targetUid without signing in
       const vRes = await fetch('/api/auth/otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -126,46 +135,41 @@ export function DeviceMesh() {
       });
       const vData = await vRes.json();
 
-      if (vData.token) {
-        // 2. Store the mesh ID for cross-account visibility (for anonymous users)
-        if (user?.isAnonymous) {
+      if (vData.targetUid && user?.uid) {
+        // Keep current user's session, just register device with pairing context
+        const currentUser = auth.currentUser;
+        const currentIdToken = await currentUser?.getIdToken();
+
+        // 2. Register Device with pairing context (both users stay separate)
+        const regRes = await fetch('/api/devices', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${currentIdToken}`
+          },
+          body: JSON.stringify({
+            deviceId: `manual_${Date.now()}`,
+            name: targetDeviceName,
+            platform: targetDeviceName.toLowerCase().includes('iphone') || targetDeviceName.toLowerCase().includes('android') ? 'mobile' : 'desktop',
+            os: 'Manual Link',
+            browser: 'Clipsy Mesh',
+            syncEnabled: true,
+            pairingCode: inputPin,
+            sourceUserId: user?.uid
+          })
+        });
+
+        if (regRes.ok) {
+          // 4. Store mesh ID for cross-account visibility
           localStorage.setItem('clipsy_paired_mesh', vData.targetUid);
-          localStorage.setItem('clipsy_paired_mesh', vData.targetUid);
-          // Force a refresh of the hub listener by broadcasting a custom event if needed
           window.dispatchEvent(new Event('mesh_sync_update'));
 
-          // 3. SIGN IN WITH TOKEN (Optional: some users might want to stay anonymous but linked)
-          // For now, we continue with signing in to ensure full account access
-          const { signInWithCustomToken } = await import('firebase/auth');
-          const { auth: clientAuth } = await import('@/shared/api/firebase');
-          await signInWithCustomToken(clientAuth, vData.token);
-          const realIdToken = await clientAuth.currentUser?.getIdToken();
-
-          // 3. Register with Identity
-          const regRes = await fetch('/api/devices', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${realIdToken}`
-            },
-            body: JSON.stringify({
-              deviceId: `manual_${Date.now()}`,
-              name: targetDeviceName,
-              platform: targetDeviceName.toLowerCase().includes('iphone') || targetDeviceName.toLowerCase().includes('android') ? 'mobile' : 'desktop',
-              os: 'Manual Link',
-              browser: 'Clipsy Mesh',
-              syncEnabled: true
-            })
-          });
-
-          if (regRes.ok) {
-            setPairingMode(false);
-            setInputPin('');
-            setTargetDeviceName('');
-          }
-        } else {
-          alert('❌ Invalid pairing code. Please check and try again.');
+          setPairingMode(false);
+          setInputPin('');
+          setTargetDeviceName('');
         }
+      } else {
+        alert('❌ Invalid pairing code. Please check and try again.');
       }
     } catch (error) {
       console.error('Pairing failed:', error);
@@ -178,7 +182,7 @@ export function DeviceMesh() {
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 4, gap: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <SyncAlt sx={{ color: "var(--theme-primary)", fontSize: 32 }} />
-          <Typography variant="h5" fontWeight={700} color="var(--text-primary)">SyncFlow</Typography>
+          <Typography variant="h5" fontWeight={700} color="var(--text-primary)">OnePaste</Typography>
         </Box>
         <Typography variant="body2" color="var(--text-dim)">
           Securely expand your enterprise sync ecosystem by pairing a new hardware node.
@@ -199,7 +203,7 @@ export function DeviceMesh() {
               </Box>
               <Typography variant="h6" fontWeight={600} color="var(--text-primary)">Scan to Pair</Typography>
               <Typography variant="caption" align="center" color="var(--text-muted)">
-                Open the SyncFlow mobile app and scan the encrypted QR code below.
+                Open the onePaste mobile app and scan the encrypted QR code below.
               </Typography>
               <Box sx={{ width: 200, height: 200, bgcolor: 'white', borderRadius: 2, p: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                 {otpCode.length > 0 ? (
@@ -271,7 +275,7 @@ export function DeviceMesh() {
 
               <List sx={{ color: 'var(--text-muted)' }}>
                 {[
-                  'Power on the new SyncFlow Enterprise node and ensure it is connected to the same VLAN.',
+                  'Power on the new onePaste Enterprise node and ensure it is connected to the same VLAN.',
                   'Select "Manual Pair" on the device interface and input the 6-digit code provided above.',
                   'Wait for the "Secure Uplink Established" message to appear on your Dashboard.'
                 ].map((text, i) => (
@@ -505,14 +509,14 @@ export function DeviceMesh() {
       )}
 
       {/* Network Activity & Connect New */}
-      <Box sx={{ 
-        display: 'grid', 
-        gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' }, 
-        gap: 3 
+      <Box sx={{
+        display: 'grid',
+        gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' },
+        gap: 3
       }}>
-        <Card sx={{ 
-          bgcolor: 'rgba(255, 255, 255, 0.03)', 
-          borderRadius: '20px', 
+        <Card sx={{
+          bgcolor: 'rgba(255, 255, 255, 0.03)',
+          borderRadius: '20px',
           border: '1px solid var(--theme-border)',
           minWidth: { xs: '100%', md: 400 }
         }}>

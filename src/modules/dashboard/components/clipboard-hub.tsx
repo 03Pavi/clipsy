@@ -432,7 +432,7 @@ export function ClipboardHub() {
               onClick={() => router.push('/auth/login?mode=signin')}
               disabled={authLoading}
             >
-              {authLoading ? <CircularProgress size={20} /> : 'Sign In / Migrate'}
+              {authLoading ? <CircularProgress size={20} sx={{ color: "GrayText" }} /> : 'Sign In / Migrate'}
             </Button>
           }
         >

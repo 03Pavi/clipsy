@@ -1,17 +1,14 @@
+import { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import ThemeRegistry from '../components/ui/theme-registry';
+import { ReduxProvider } from '../components/providers/redux-provider';
 
-import type { Metadata } from "next";
-import StoreProvider from "@/app/providers/store-provider";
-import { FirebaseProvider } from "@/app/providers/firebase-provider";
-import "./globals.scss";
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: "SyncFlow | Enterprise Mesh Sync",
-  description: "Advanced zero-latency synchronization across your local hardware mesh and enterprise cloud.",
-  icons: {
-    icon: "/logo.png",
-    shortcut: "/favicon.png",
-    apple: "/logo.png",
-  },
+  title: 'OnePaste | The Mesh Clipboard',
+  description: 'Seamlessly synchronize your clipboard across all devices in real-time.',
 };
 
 export default function RootLayout({
@@ -21,12 +18,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body suppressHydrationWarning={true}>
-        <StoreProvider>
-          <FirebaseProvider>
+      <body className={inter.className}>
+        <ReduxProvider>
+          <ThemeRegistry>
             {children}
-          </FirebaseProvider>
-        </StoreProvider>
+          </ThemeRegistry>
+        </ReduxProvider>
       </body>
     </html>
   );

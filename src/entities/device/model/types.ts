@@ -11,4 +11,5 @@ export interface Device {
   syncEnabled: boolean;
   lastSeenAt: number;                 // Unix Timestamp
   activeSyncLinkIds: string[];        // IDs of SyncLinks this device belongs to
+  roomId?: string;                    // ID of the room this device belongs to (for cross-user sync)
 }

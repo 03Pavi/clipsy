@@ -9,3 +9,11 @@ export interface SyncLink {
   status: 'active' | 'paused' | 'revoked';
   createdAt: number;
 }
+
+export interface Mesh {
+  id: string;                    // e.g., "mesh_uid1_uid2"
+  userIds: string[];             // The two user UIDs in this mesh
+  deviceIds: string[];           // Device IDs belonging to this mesh
+  createdAt: number;             // Unix timestamp
+  status: 'active' | 'revoked';
+}

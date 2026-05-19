@@ -44,7 +44,6 @@ function PairingContent() {
           await signInWithCustomToken(clientAuth, vData.token);
 
           // 4. GENERATE PERSISTENT DEVICE IDENTITY
-          // We must ensure this device has its unique ID before registration
           let dId = localStorage.getItem('clipsy_device_id');
           if (!dId) {
             const { v4: uuidv4 } = await import('uuid');
@@ -54,7 +53,7 @@ function PairingContent() {
 
           const realIdToken = await clientAuth.currentUser?.getIdToken();
 
-          // 5. Register Device with full Hardware Profile
+          // 5. Register Device with full Hardware Profile and pairing context
           const regRes = await fetch('/api/devices', {
             method: 'POST',
             headers: {
@@ -67,7 +66,9 @@ function PairingContent() {
               platform: platform,
               os: navigator.userAgent.match(/\(([^)]+)\)/)?.[1] || 'Unknown',
               browser: navigator.userAgent.match(/(firefox|msie|chrome|safari|trident)/i)?.[0] || 'Browser',
-              syncEnabled: true
+              syncEnabled: true,
+              pairingCode: pairingId,
+              sourceUserId: userId
             })
           });
 
@@ -114,7 +115,7 @@ function PairingContent() {
               <CircularProgress
                 size={80}
                 sx={{
-                  color: "var(--theme-primary)",
+                  color: "GrayText",
                   position: 'absolute',
                   top: -10,
                   left: -10,
@@ -123,7 +124,7 @@ function PairingContent() {
               />
             </Box>
             <Typography variant="h5" fontWeight={700} color="white" gutterBottom>Establishing Secure Uplink</Typography>
-            <Typography variant="body2" color="rgba(255,255,255,0.4)">Exchanging cryptographic keys with the SyncFlow Cloud...</Typography>
+            <Typography variant="body2" color="rgba(255,255,255,0.4)">Exchanging cryptographic keys with the onePaste Cloud...</Typography>
           </motion.div>
         )}
 
