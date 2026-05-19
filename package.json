@@ -15,11 +15,11 @@
     "@mui/icons-material": "6.5.0",
     "@mui/material": "6.5.0",
     "@reduxjs/toolkit": "2.12.0",
-    "@tiptap/extension-image": "3.23.1",
-    "@tiptap/extension-link": "3.23.4",
-    "@tiptap/extension-underline": "3.23.1",
-    "@tiptap/react": "3.23.1",
-    "@tiptap/starter-kit": "3.23.1",
+    "@tiptap/extension-image": "^3.23.4",
+    "@tiptap/extension-link": "^3.23.4",
+    "@tiptap/extension-underline": "^3.23.4",
+    "@tiptap/react": "^3.23.4",
+    "@tiptap/starter-kit": "^3.23.4",
     "@types/uuid": "11.0.0",
     "axios": "^1.8.4",
     "firebase": "12.13.0",
@@ -40,6 +40,17 @@
     "tiptap-extension-resize-image": "1.4.0",
     "uuid": "14.0.0",
     "zustand": "5.0.13"
+  },
+  "overrides": {
+    "@tiptap/core": "$@tiptap/react",
+    "mui-tiptap": {
+      "@tiptap/core": "$@tiptap/react",
+      "@tiptap/starter-kit": "$@tiptap/react"
+    },
+    "tiptap-extension-resize-image": {
+      "@tiptap/core": "$@tiptap/react",
+      "@tiptap/extension-image": "$@tiptap/react"
+    }
   },
   "devDependencies": {
     "@types/node": "^20.17.23",
