@@ -200,7 +200,7 @@ export default function LoginPage() {
         >
           <InfoOutlined sx={{ color: '#0070f3', fontSize: 20, mt: 0.2 }} />
           <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.5)', lineHeight: 1.5, textAlign: 'left' }}>
-            Anonymous data is stored locally and will be lost if browser cache is cleared. High-security environments may require a verified account.
+            Anonymous data is local and may be lost on cache clear
           </Typography>
         </Box>
 

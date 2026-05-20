@@ -1,7 +1,7 @@
-import { Box, Typography, Paper, IconButton, Stack, Tooltip, Switch, FormControlLabel, Button } from '@mui/material';
+import { Box, Typography, Paper, IconButton, Stack, Tooltip, Switch, FormControlLabel, Button, Menu, MenuItem } from '@mui/material';
 import { useState } from 'react';
 import { Room } from '../../types/room.types';
-import { ArrowBack, VideoCall } from '@mui/icons-material';
+import { ArrowBack, VideoCall, MoreVert, ScreenShare, CameraAlt, Visibility } from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase-client';
@@ -12,6 +12,21 @@ export default function RoomHeader({ room, onVideoCallClick }: { room: Room, onV
   const [tooltipTitle, setTooltipTitle] = useState('Copy Sync Code');
   const { user } = useAuth();
   const isOwner = room.createdBy === user?.uid;
+  const isSomeoneElseBroadcasting = room.activeScreenShare?.active && room.activeScreenShare.sharerId !== user?.uid;
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+
+  const handleMenuOpen = (e: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(e.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleAction = (e: React.MouseEvent, action: 'screenshare' | 'streamchat') => {
+    setAnchorEl(null);
+    router.push(`/room/${room.id}?action=${action}`);
+  };
 
   const handleTogglePrivacy = async (e: React.ChangeEvent<HTMLInputElement>) => {
     try {
@@ -32,7 +47,15 @@ export default function RoomHeader({ room, onVideoCallClick }: { room: Room, onV
   };
 
   return (
-    <Paper
+    <>
+      <style>{`
+        @keyframes pulse {
+          0% { opacity: 0.4; }
+          50% { opacity: 1; }
+          100% { opacity: 0.4; }
+        }
+      `}</style>
+      <Paper
       elevation={0}
       sx={{
         p: { xs: 2, sm: 4 },
@@ -111,6 +134,64 @@ export default function RoomHeader({ room, onVideoCallClick }: { room: Room, onV
             </Typography>
           </Tooltip>
         </Box>
+
+        {isSomeoneElseBroadcasting && (
+          <Tooltip title={`Watch ${room.activeScreenShare?.sharerName}'s Live Stream`}>
+            <IconButton
+              onClick={() => router.push(`/room/${room.id}?action=watch`)}
+              sx={{
+                color: '#00c6ff',
+                bgcolor: 'rgba(0, 198, 255, 0.1)',
+                border: '1px solid rgba(0, 198, 255, 0.2)',
+                animation: 'pulse 1.8s infinite',
+                mr: 1,
+                '&:hover': {
+                  bgcolor: 'rgba(0, 198, 255, 0.2)',
+                  borderColor: '#00c6ff'
+                }
+              }}
+            >
+              <Visibility />
+            </IconButton>
+          </Tooltip>
+        )}
+
+        <IconButton
+          size="small"
+          onClick={handleMenuOpen}
+          sx={{
+            color: 'text.secondary',
+            '&:hover': { color: 'primary.main', bgcolor: 'action.hover' }
+          }}
+        >
+          <MoreVert fontSize="small" />
+        </IconButton>
+
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleMenuClose}
+        onClick={(e) => e.stopPropagation()}
+        PaperProps={{
+          sx: {
+            bgcolor: 'background.paper',
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: 2,
+            minWidth: 160,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
+          }
+        }}
+      >
+        <MenuItem onClick={(e) => handleAction(e, 'screenshare')} sx={{ gap: 1.5, py: 1 }}>
+          <ScreenShare fontSize="small" sx={{ color: '#0070f3' }} />
+          <Typography variant="body2" fontWeight={500}>Start Screen Share</Typography>
+        </MenuItem>
+        <MenuItem onClick={(e) => handleAction(e, 'streamchat')} sx={{ gap: 1.5, py: 1 }}>
+          <CameraAlt fontSize="small" sx={{ color: '#22c55e' }} />
+          <Typography variant="body2" fontWeight={500}>Stream Chat</Typography>
+        </MenuItem>
+      </Menu>
 {/* 
         {onVideoCallClick && !room.isTemporary && (
           <IconButton
@@ -134,5 +215,6 @@ export default function RoomHeader({ room, onVideoCallClick }: { room: Room, onV
         )} */}
       </Box>
     </Paper>
+    </>
   );
 }

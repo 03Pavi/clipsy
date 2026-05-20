@@ -1,7 +1,7 @@
 import { doc, deleteDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase-client';
 
-export const deleteRoomFromFirebase = async (roomId: string) => {
+export const deleteRoomFromFirebase = async (roomId: string, userId?: string) => {
   try {
     const roomRef = doc(db, 'rooms', roomId);
     
@@ -17,6 +17,12 @@ export const deleteRoomFromFirebase = async (roomId: string) => {
 
     // Finally delete the room document itself
     await deleteDoc(roomRef);
+
+    // Delete the room from the user's history if userId is provided
+    if (userId) {
+      const userRoomRef = doc(db, 'users', userId, 'joinedRooms', roomId);
+      await deleteDoc(userRoomRef);
+    }
   } catch (error) {
     console.error('Error deleting room from Firebase:', error);
     throw error;

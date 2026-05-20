@@ -13,16 +13,18 @@ import RoomDeviceList from '../../../components/room/room-device-list';
 import RoomScreenShare from '../../../components/room/room-screen-share';
 import RoomJoinRequests from '../../../components/room/room-join-requests';
 import TemporaryRoomVideoCall from '../../../components/room/temporary-room-video-call';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useDispatch } from 'react-redux';
 import { addRecentRoom } from '../../../store/slices/recent-rooms-slice';
-import { doc, onSnapshot, collection, getDoc, setDoc, updateDoc, query, where } from 'firebase/firestore';
+import { doc, onSnapshot, collection, getDoc, setDoc, updateDoc, query, where, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../config/firebase-client';
 import { deviceStorage } from '../../../lib/device/device-storage';
 
 export default function RoomPage() {
   const params = useParams();
   const roomId = params['room-id'] as string;
+  const searchParams = useSearchParams();
+  const autoAction = searchParams.get('action') as 'screenshare' | 'streamchat' | null;
   const { user } = useAuth();
   const router = useRouter();
   const dispatch = useDispatch();
@@ -237,6 +239,8 @@ export default function RoomPage() {
 
     const unsubscribe = onSnapshot(participantRef, (docSnap) => {
       if (!docSnap.exists() && room.createdBy !== user.uid) {
+        const userRoomRef = doc(db, 'users', user.uid, 'joinedRooms', roomId);
+        deleteDoc(userRoomRef).catch(console.error);
         alert('You have been removed from this room by the owner.');
         router.push('/dashboard');
       }
@@ -244,6 +248,16 @@ export default function RoomPage() {
 
     return () => unsubscribe();
   }, [user, roomId, room, roomLoading, router]);
+
+  useEffect(() => {
+    if (!roomLoading && !room) {
+      if (user && roomId) {
+        const userRoomRef = doc(db, 'users', user.uid, 'joinedRooms', roomId);
+        deleteDoc(userRoomRef).catch(console.error);
+      }
+      router.push('/dashboard');
+    }
+  }, [room, roomLoading, user, roomId, router]);
 
   useEffect(() => {
     if (!user) {
@@ -299,7 +313,7 @@ export default function RoomPage() {
 
         <Grid container spacing={4}>
           <Grid item xs={12} md={8}>
-            <RoomScreenShare roomId={roomId} room={room} />
+            <RoomScreenShare roomId={roomId} room={room} autoAction={autoAction} />
             <Paper elevation={0} sx={{ ...paperStyle, mb: 4 }}>
               <ClipboardInput roomId={roomId} />
             </Paper>

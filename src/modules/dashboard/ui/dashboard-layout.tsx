@@ -60,7 +60,7 @@ export function DashboardLayout() {
         const roomsSnap = await getDocs(roomsQuery);
         
         // 2. Delete all rooms
-        const deletePromises = roomsSnap.docs.map(doc => deleteRoomFromFirebase(doc.id));
+        const deletePromises = roomsSnap.docs.map(doc => deleteRoomFromFirebase(doc.id, user.uid));
         await Promise.all(deletePromises);
 
         // 3. Batch delete devices, clipboard items, and user doc

@@ -7,6 +7,7 @@ import { deviceStorage } from '../../lib/device/device-storage';
 import { Room } from '../../types/room.types';
 import { db } from '../../config/firebase-client';
 import { doc, updateDoc, setDoc, onSnapshot, collection, addDoc, deleteDoc, getDocs } from 'firebase/firestore';
+import { useRouter } from 'next/navigation';
 
 const peerConnectionConfig = {
   iceServers: [
@@ -16,7 +17,7 @@ const peerConnectionConfig = {
   ]
 };
 
-export default function RoomScreenShare({ roomId, room }: { roomId: string, room: Room | null }) {
+export default function RoomScreenShare({ roomId, room, autoAction }: { roomId: string, room: Room | null, autoAction?: 'screenshare' | 'streamchat' | 'watch' | null }) {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +32,7 @@ export default function RoomScreenShare({ roomId, room }: { roomId: string, room
   const unsubscribesRef = useRef<(() => void)[]>([]);
 
   const { user } = useAuthStore();
+  const router = useRouter();
 
   const isSupported = typeof window !== 'undefined' &&
     navigator.mediaDevices &&
@@ -417,6 +419,20 @@ export default function RoomScreenShare({ roomId, room }: { roomId: string, room
     };
   }, []);
 
+  useEffect(() => {
+    if (!autoAction || !room || !user) return;
+    if (autoAction === 'screenshare') {
+      startShare().catch(console.error);
+      router.replace(`/room/${roomId}`);
+    } else if (autoAction === 'streamchat') {
+      startCameraCall().catch(console.error);
+      router.replace(`/room/${roomId}`);
+    } else if (autoAction === 'watch') {
+      startWatching().catch(console.error);
+      router.replace(`/room/${roomId}`);
+    }
+  }, [autoAction, room, user, roomId]);
+
   if (!isSupported) {
     return null;
   }
@@ -433,103 +449,6 @@ export default function RoomScreenShare({ roomId, room }: { roomId: string, room
           100% { opacity: 0.4; }
         }
       `}</style>
-
-      {/* 1. Idle View: No one is sharing */}
-      {!isSomeoneElseSharing && !isCurrentSharer && (
-        <Paper
-          elevation={0}
-          sx={{
-            p: 4,
-            borderRadius: 4,
-            bgcolor: '#111622',
-            border: '1px solid rgba(255, 255, 255, 0.05)',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            textAlign: 'center',
-            position: 'relative',
-            overflow: 'hidden',
-            background: 'radial-gradient(circle at top left, rgba(0, 112, 243, 0.05), transparent 60%)'
-          }}
-        >
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 60,
-              height: 60,
-              borderRadius: 3,
-              background: 'rgba(0, 112, 243, 0.1)',
-              border: '1px solid rgba(0, 112, 243, 0.2)',
-              color: '#0070f3',
-              mb: 2,
-              boxShadow: '0 8px 32px rgba(0, 112, 243, 0.15)'
-            }}
-          >
-            <ScreenShare sx={{ fontSize: 32 }} />
-          </Box>
-          <Typography variant="h6" fontWeight={700} sx={{ color: '#fff', mb: 1 }}>
-            Real-Time Stream Hub
-          </Typography>
-          <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.5)', maxWidth: 460, mb: 3 }}>
-            Broadcast your screen or start a live face-to-face video call with high-fidelity WebRTC. Connect, communicate, and snap real-time frames instantly into the room mesh.
-          </Typography>
-
-          {error && (
-            <Typography variant="caption" sx={{ color: '#ffb4ab', mb: 2, display: 'block' }}>
-              {error}
-            </Typography>
-          )}
-
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <Button
-              variant="contained"
-              onClick={startShare}
-              startIcon={<ScreenShare />}
-              sx={{
-                py: 1.5,
-                px: 3,
-                borderRadius: 2,
-                fontWeight: 600,
-                textTransform: 'none',
-                background: 'linear-gradient(135deg, #0070f3, #00c6ff)',
-                boxShadow: '0 4px 14px rgba(0, 112, 243, 0.4)',
-                transition: 'all 0.2s',
-                '&:hover': {
-                  transform: 'translateY(-1px)',
-                  boxShadow: '0 6px 20px rgba(0, 112, 243, 0.5)',
-                }
-              }}
-            >
-              Start Screen Share
-            </Button>
-
-            <Button
-              variant="contained"
-              onClick={startCameraCall}
-              startIcon={<CameraAlt />}
-              sx={{
-                py: 1.5,
-                px: 3,
-                borderRadius: 2,
-                fontWeight: 600,
-                textTransform: 'none',
-                background: 'linear-gradient(135deg, #22c55e, #10b981)',
-                boxShadow: '0 4px 14px rgba(34, 197, 94, 0.4)',
-                transition: 'all 0.2s',
-                '&:hover': {
-                  transform: 'translateY(-1px)',
-                  boxShadow: '0 6px 20px rgba(34, 197, 94, 0.5)',
-                }
-              }}
-            >
-              Stream Chat
-            </Button>
-          </Box>
-        </Paper>
-      )}
 
       {/* 2. Broadcaster View: Current user is sharing */}
       {isCurrentSharer && (

@@ -107,6 +107,20 @@ export default function TemporaryRoomVideoCall({ room, roomId, user, onLeave }: 
     };
   }, [roomId, user]);
 
+  // Keep local video element in sync with the media stream across layout switches
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream, isGridView]);
+
+  // Keep remote video element in sync with the media stream across layout switches
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream, isGridView, isConnecting]);
+
   // --- WebRTC BROADCASTER SIGNALLING ---
   const startBroadcasting = async (stream: MediaStream) => {
     if (!user) return;
@@ -388,9 +402,6 @@ export default function TemporaryRoomVideoCall({ room, roomId, user, onLeave }: 
         {/* Stream Top Header */}
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2, zIndex: 10 }}>
           <Box>
-            <Typography variant="subtitle2" sx={{ color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: 700 }}>
-              1:1 Secure Video Session
-            </Typography>
             <Typography variant="h6" fontWeight={700} sx={{ color: '#fff' }}>
               {room.name || 'Private Chat Room'}
             </Typography>
@@ -478,7 +489,7 @@ export default function TemporaryRoomVideoCall({ room, roomId, user, onLeave }: 
                     autoPlay
                     playsInline
                     muted
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
                   />
                   <Box sx={{ position: 'absolute', bottom: 16, left: 16, bgcolor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', px: 1.5, py: 0.6, borderRadius: 1.5 }}>
                     <Typography variant="caption" sx={{ color: '#fff', fontWeight: 600 }}>{user?.displayName || 'Me'} (You)</Typography>
@@ -546,7 +557,7 @@ export default function TemporaryRoomVideoCall({ room, roomId, user, onLeave }: 
                   autoPlay
                   playsInline
                   muted
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
                 />
                 <Box sx={{ position: 'absolute', bottom: 8, left: 8, bgcolor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', px: 1, py: 0.3, borderRadius: 1 }}>
                   <Typography variant="caption" sx={{ color: '#fff', fontWeight: 600, fontSize: '0.7rem' }}>You</Typography>
