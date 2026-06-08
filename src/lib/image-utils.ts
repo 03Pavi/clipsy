@@ -79,3 +79,42 @@ export const decodeImage = ({
 }) => {
   return `data:${mimeType};base64,${base64}`;
 };
+
+export const downloadImageAsFormat = async (
+  src: string,
+  format: 'jpeg' | 'png' | 'webp',
+  fileName: string = 'download'
+) => {
+  return new Promise<void>((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = src;
+
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'));
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0);
+
+      const mimeType = `image/${format}`;
+      const dataUrl = canvas.toDataURL(mimeType, 1.0);
+
+      const link = document.createElement('a');
+      link.download = `${fileName}.${format === 'jpeg' ? 'jpg' : format}`;
+      link.href = dataUrl;
+      link.click();
+      resolve();
+    };
+
+    img.onerror = () => {
+      reject(new Error('Failed to load image for conversion'));
+    };
+  });
+};

@@ -6,7 +6,7 @@ import { formatDate } from '../../lib/helpers/format-date';
 import Editor from '@monaco-editor/react';
 import { useAuthStore } from '../../stores/auth-store';
 import { deleteClipboardItem } from '../../services/clipboard/delete-clipboard-item';
-import { decodeImage } from '../../lib/image-utils';
+import { decodeImage, downloadImageAsFormat } from '../../lib/image-utils';
 
 export default function ClipboardItem({ item }: { item: ClipboardItemType }) {
   const { user } = useAuthStore();
@@ -19,6 +19,21 @@ export default function ClipboardItem({ item }: { item: ClipboardItemType }) {
 
   const handleClose = () => {
     setAnchorEl(null);
+  };
+
+  const handleDownload = async (format: 'jpeg' | 'png' | 'webp') => {
+    const src = item.type === 'image' && item.content.length > 100
+      ? decodeImage({ base64: item.content, mimeType: item.mimeType })
+      : item.fileUrl;
+
+    if (src) {
+      try {
+        await downloadImageAsFormat(src, format, 'clipboard-image');
+      } catch (err) {
+        console.error('Failed to download image:', err);
+      }
+    }
+    handleClose();
   };
 
   const handleCopy = async () => {
@@ -160,12 +175,35 @@ export default function ClipboardItem({ item }: { item: ClipboardItemType }) {
               </MenuItem>
             )}
             
-            {(item.type === 'image' || item.type === 'file') && (item.fileUrl || (item.type === 'image' && item.content.length > 100)) && (
+            {item.type === 'image' && (item.fileUrl || item.content.length > 100) && (
+              <>
+                <MenuItem onClick={() => handleDownload('jpeg')}>
+                  <ListItemIcon>
+                    <Download fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText primary="Download as JPG" />
+                </MenuItem>
+                <MenuItem onClick={() => handleDownload('png')}>
+                  <ListItemIcon>
+                    <Download fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText primary="Download as PNG" />
+                </MenuItem>
+                <MenuItem onClick={() => handleDownload('webp')}>
+                  <ListItemIcon>
+                    <Download fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText primary="Download as WebP" />
+                </MenuItem>
+              </>
+            )}
+
+            {item.type === 'file' && item.fileUrl && (
               <MenuItem 
                 component="a" 
-                href={item.type === 'image' && item.content.length > 100 ? decodeImage({ base64: item.content, mimeType: item.mimeType }) : item.fileUrl} 
+                href={item.fileUrl}
                 target="_blank" 
-                download={item.type === 'image' ? "clipboard-image.webp" : "download"} 
+                download="download"
                 onClick={handleClose}
               >
                 <ListItemIcon>
