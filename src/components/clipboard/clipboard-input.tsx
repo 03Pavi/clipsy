@@ -60,25 +60,38 @@ export default function ClipboardInput({ roomId }: { roomId: string }) {
       setCodeContent('');
     } else if (mode === 'image' && file) {
       try {
-        const result = await encodeImage({
-          file,
-          quality: 0.5,
-          maxWidth: 700,
+        // Create an object URL to get image dimensions before uploading
+        const url = URL.createObjectURL(file);
+        const img = new window.Image();
+
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = url;
         });
+
+        const width = img.width;
+        const height = img.height;
+        URL.revokeObjectURL(url);
+
+        const result = await uploadAttachment(file);
 
         await createClipboardItem({
           roomId,
           type: 'image',
-          content: result.base64,
+          content: file.name,
+          fileUrl: result.url,
+          filePath: result.id,
           mimeType: result.mimeType,
-          width: result.width,
-          height: result.height,
+          size: result.size,
+          width,
+          height,
           createdByUserId: user.uid,
           createdByDeviceId: deviceStorage.getDeviceId(),
           createdAt: Date.now()
         });
       } catch (err) {
-        console.error('Failed to compress/encode image:', err);
+        console.error('Failed to upload image:', err);
       }
       setFile(null);
       setMode('text');
