@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Box, IconButton, Tooltip, Typography, Paper } from '@mui/material';
 import { Send, Code, Image as ImageIcon, Title, AttachFile, InsertDriveFile } from '@mui/icons-material';
 import { createClipboardItem } from '../../services/clipboard/create-clipboard-item';
-import { uploadAttachment } from '../../services/clipboard/upload-attachment';
+import { uploadClipboardFile } from '../../services/clipboard/upload-clipboard-file';
 import { useAuthStore } from '../../stores/auth-store';
 import { deviceStorage } from '../../lib/device/device-storage';
 import { EditorContent, useEditor } from '@tiptap/react';
@@ -106,6 +106,26 @@ export default function ClipboardInput({ roomId }: { roomId: string }) {
           filePath: result.id, // using ID as path reference
           mimeType: result.mimeType,
           size: result.size,
+          createdByUserId: user.uid,
+          createdByDeviceId: deviceStorage.getDeviceId(),
+          createdAt: Date.now()
+        });
+      } catch (err) {
+        console.error('Failed to upload file:', err);
+      }
+      setFile(null);
+      setMode('text');
+    } else if (mode === 'file' && file) {
+      try {
+        const result = await uploadClipboardFile(roomId, file);
+        await createClipboardItem({
+          roomId,
+          type: 'file',
+          content: file.name,
+          fileUrl: result.url,
+          filePath: result.path,
+          mimeType: file.type,
+          size: file.size,
           createdByUserId: user.uid,
           createdByDeviceId: deviceStorage.getDeviceId(),
           createdAt: Date.now()
