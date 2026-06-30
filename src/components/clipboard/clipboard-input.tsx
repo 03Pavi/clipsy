@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Box, IconButton, Tooltip, Typography, Paper } from '@mui/material';
+import { Box, IconButton, Tooltip, Typography, Paper, CircularProgress } from '@mui/material';
 import { Send, Code, Image as ImageIcon, Title, AttachFile, InsertDriveFile } from '@mui/icons-material';
 import { createClipboardItem } from '../../services/clipboard/create-clipboard-item';
 import { uploadAttachment } from '../../services/clipboard/upload-attachment';
@@ -17,6 +17,7 @@ export default function ClipboardInput({ roomId }: { roomId: string }) {
   const [codeContent, setCodeContent] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [editorText, setEditorText] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuthStore();
 
@@ -59,6 +60,7 @@ export default function ClipboardInput({ roomId }: { roomId: string }) {
       });
       setCodeContent('');
     } else if (mode === 'image' && file) {
+      setIsUploading(true);
       try {
         // Create an object URL to get image dimensions before uploading
         const url = URL.createObjectURL(file);
@@ -92,10 +94,13 @@ export default function ClipboardInput({ roomId }: { roomId: string }) {
         });
       } catch (err) {
         console.error('Failed to upload image:', err);
+      } finally {
+        setIsUploading(false);
+        setFile(null);
+        setMode('text');
       }
-      setFile(null);
-      setMode('text');
     } else if (mode === 'file' && file) {
+      setIsUploading(true);
       try {
         const result = await uploadAttachment(file);
         await createClipboardItem({
@@ -112,9 +117,11 @@ export default function ClipboardInput({ roomId }: { roomId: string }) {
         });
       } catch (err) {
         console.error('Failed to upload file:', err);
+      } finally {
+        setIsUploading(false);
+        setFile(null);
+        setMode('text');
       }
-      setFile(null);
-      setMode('text');
     }
   };
 
@@ -181,7 +188,9 @@ export default function ClipboardInput({ roomId }: { roomId: string }) {
               height={120}
               sx={{ border: '1px dashed', borderColor: 'divider', borderRadius: 2 }}
             >
-              {file ? (
+              {isUploading ? (
+                <CircularProgress size={24} sx={{ mb: 1 }} />
+              ) : file ? (
                 <Typography color="text.primary">{file.name}</Typography>
               ) : (
                 <Typography color="text.secondary">Select an image using the toolbar below</Typography>
@@ -197,8 +206,14 @@ export default function ClipboardInput({ roomId }: { roomId: string }) {
               height={120}
               sx={{ border: '1px dashed', borderColor: 'divider', borderRadius: 2 }}
             >
-              <InsertDriveFile sx={{ fontSize: 40, color: 'text.secondary', mb: 1 }} />
-              {file ? (
+              {isUploading ? (
+                <CircularProgress size={40} sx={{ mb: 1 }} />
+              ) : (
+                <InsertDriveFile sx={{ fontSize: 40, color: 'text.secondary', mb: 1 }} />
+              )}
+              {isUploading ? (
+                <Typography color="text.secondary">Uploading {file?.name}...</Typography>
+              ) : file ? (
                 <Typography color="text.primary">{file.name}</Typography>
               ) : (
                 <Typography color="text.secondary">Select a file using the toolbar below</Typography>
@@ -257,7 +272,7 @@ export default function ClipboardInput({ roomId }: { roomId: string }) {
           </Box>
           <IconButton 
             onClick={handleSend} 
-            disabled={(mode === 'text' && !editorText.trim()) || (mode === 'code' && !codeContent.trim()) || (mode === 'image' && !file) || (mode === 'file' && !file)}
+            disabled={isUploading || (mode === 'text' && !editorText.trim()) || (mode === 'code' && !codeContent.trim()) || (mode === 'image' && !file) || (mode === 'file' && !file)}
             sx={{ 
               bgcolor: 'primary.main', 
               color: 'primary.contrastText', 

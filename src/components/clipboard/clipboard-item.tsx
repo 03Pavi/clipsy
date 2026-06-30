@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Box, ListItem, Typography, IconButton, Paper, Tooltip, Menu, MenuItem, ListItemIcon, ListItemText } from '@mui/material';
-import { ContentCopy, Download, Link as LinkIcon, Image as ImageIcon, InsertDriveFile, TextSnippet, Code, DeleteOutline, MoreVert } from '@mui/icons-material';
+import { ContentCopy, Download, Link as LinkIcon, Image as ImageIcon, InsertDriveFile, TextSnippet, Code, DeleteOutline, MoreVert, OpenInNew } from '@mui/icons-material';
 import { ClipboardItem as ClipboardItemType } from '../../types/clipboard.types';
 import { formatDate } from '../../lib/helpers/format-date';
 import Editor from '@monaco-editor/react';
@@ -39,6 +39,8 @@ export default function ClipboardItem({ item }: { item: ClipboardItemType }) {
   const handleCopy = async () => {
     if (item.type === 'text' || item.type === 'link' || item.type === 'code') {
       navigator.clipboard.writeText(item.content.replace(/<[^>]*>?/gm, ''));
+    } else if (item.type === 'file' && item.fileUrl) {
+      navigator.clipboard.writeText(item.fileUrl);
     } else if (item.type === 'image') {
       if (item.content.length > 100) {
         try {
@@ -112,11 +114,17 @@ export default function ClipboardItem({ item }: { item: ClipboardItemType }) {
         </Box>
         <Box flex={1} overflow="hidden">
           {item.type === 'image' ? (
-            <img 
-              src={item.content.length > 100 ? decodeImage({ base64: item.content, mimeType: item.mimeType }) : item.fileUrl} 
-              alt="clipboard" 
-              style={{ maxHeight: 200, maxWidth: '100%', borderRadius: 8, objectFit: 'contain' }} 
-            />
+            <a href={item.content.length > 100 ? decodeImage({ base64: item.content, mimeType: item.mimeType }) : item.fileUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block' }}>
+              <img
+                src={item.content.length > 100 ? decodeImage({ base64: item.content, mimeType: item.mimeType }) : item.fileUrl}
+                alt="clipboard"
+                style={{ maxHeight: 200, maxWidth: '100%', borderRadius: 8, objectFit: 'contain' }}
+              />
+            </a>
+          ) : item.type === 'file' ? (
+            <Typography variant="body1" sx={{ wordBreak: 'break-all', color: '#fff' }}>
+              <a href={item.fileUrl} target="_blank" rel="noreferrer" style={{ color: '#00c6ff', textDecoration: 'none' }}>{item.content}</a>
+            </Typography>
           ) : item.type === 'code' ? (
             <Box sx={{ mt: 1, borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
               <Editor
@@ -166,12 +174,36 @@ export default function ClipboardItem({ item }: { item: ClipboardItemType }) {
               }
             }}
           >
-            {item.type !== 'image' && (
+            {item.type !== 'image' && item.type !== 'file' && (
               <MenuItem onClick={() => { handleCopy(); handleClose(); }}>
                 <ListItemIcon>
                   <ContentCopy fontSize="small" />
                 </ListItemIcon>
                 <ListItemText primary="Copy" />
+              </MenuItem>
+            )}
+
+            {item.type === 'file' && item.fileUrl && (
+              <MenuItem onClick={() => { handleCopy(); handleClose(); }}>
+                <ListItemIcon>
+                  <ContentCopy fontSize="small" />
+                </ListItemIcon>
+                <ListItemText primary="Copy Link" />
+              </MenuItem>
+            )}
+
+            {(item.type === 'image' || item.type === 'file') && (item.fileUrl || item.content.length > 100) && (
+              <MenuItem
+                component="a"
+                href={item.type === 'image' && item.content.length > 100 ? decodeImage({ base64: item.content, mimeType: item.mimeType }) : item.fileUrl}
+                target="_blank"
+                rel="noreferrer"
+                onClick={handleClose}
+              >
+                <ListItemIcon>
+                  <OpenInNew fontSize="small" />
+                </ListItemIcon>
+                <ListItemText primary="Open in new tab" />
               </MenuItem>
             )}
             
