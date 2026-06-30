@@ -1,11 +1,13 @@
 import { initializeApp, cert, getApps } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getDatabase } from "firebase-admin/database";
 
 if (!getApps().length) {
   const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  const databaseURL = process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || "https://dummy-database.firebaseio.com";
 
   if (privateKey && clientEmail && projectId) {
     try {
@@ -15,17 +17,23 @@ if (!getApps().length) {
           privateKey,
           clientEmail,
         }),
+        databaseURL,
       });
     } catch {
-      initializeApp();
+      initializeApp({
+        databaseURL,
+      });
     }
   } else {
-    initializeApp();
+    initializeApp({
+        databaseURL,
+    });
   }
 }
 
 export const adminAuth = getAuth();
 export const adminDb = getFirestore();
+export const adminRtdb = getDatabase();
 export { FieldValue };
 
 if (getApps().length) {
