@@ -24,7 +24,7 @@ export default function RoomPage() {
   const params = useParams();
   const roomId = params['room-id'] as string;
   const searchParams = useSearchParams();
-  const autoAction = searchParams.get('action') as 'screenshare' | 'streamchat' | null;
+  const autoAction = searchParams.get('action') as 'screenshare' | 'streamchat' | 'groupchat' | null;
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const dispatch = useDispatch();
