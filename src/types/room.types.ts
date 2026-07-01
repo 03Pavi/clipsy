@@ -14,4 +14,11 @@ export interface Room {
     type?: 'screen' | 'camera';
     startedAt: number;
   };
+  activeStreams?: Record<string, {
+    sharerId: string;
+    sharerName: string;
+    active: boolean;
+    type?: 'screen' | 'camera';
+    startedAt: number;
+  }>;
 }

@@ -12,7 +12,10 @@ export default function RoomHeader({ room, onVideoCallClick }: { room: Room, onV
   const [tooltipTitle, setTooltipTitle] = useState('Copy Sync Code');
   const { user } = useAuth();
   const isOwner = room.createdBy === user?.uid;
-  const isSomeoneElseBroadcasting = room.activeScreenShare?.active && room.activeScreenShare.sharerId !== user?.uid;
+
+  const activeStreamsCount = Object.keys(room.activeStreams || {}).filter(uid => room.activeStreams?.[uid]?.active && uid !== user?.uid).length;
+  const isSomeoneElseBroadcasting = activeStreamsCount > 0;
+
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
   const handleMenuOpen = (e: React.MouseEvent<HTMLElement>) => {
@@ -136,7 +139,7 @@ export default function RoomHeader({ room, onVideoCallClick }: { room: Room, onV
         </Box>
 
         {isSomeoneElseBroadcasting && (
-          <Tooltip title={`Watch ${room.activeScreenShare?.sharerName}'s Live Stream`}>
+          <Tooltip title={`${activeStreamsCount} Live Stream(s) active`}>
             <IconButton
               onClick={() => router.push(`/room/${room.id}?action=watch`)}
               sx={{
@@ -192,27 +195,6 @@ export default function RoomHeader({ room, onVideoCallClick }: { room: Room, onV
           <Typography variant="body2" fontWeight={500}>Stream Chat</Typography>
         </MenuItem>
       </Menu>
-{/* 
-        {onVideoCallClick && !room.isTemporary && (
-          <IconButton
-            onClick={onVideoCallClick}
-            sx={{
-              py: 1.2,
-              px: 2.5,
-              borderRadius: 3,
-              fontWeight: 600,
-              textTransform: 'none',
-              background: 'linear-gradient(135deg, #0070f3, #00c6ff)',
-              boxShadow: '0 4px 14px rgba(0, 112, 243, 0.4)',
-              transition: 'all 0.2s',
-              '&:hover': {
-                transform: 'translateY(-1px)',
-                boxShadow: '0 6px 20px rgba(0, 112, 243, 0.5)',
-              }
-            }}
-          ><VideoCall />
-          </IconButton>
-        )} */}
       </Box>
     </Paper>
     </>
