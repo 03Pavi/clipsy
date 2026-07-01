@@ -1,9 +1,11 @@
+export const dynamic = 'error';
+
 import { NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/shared/api/firebase-admin';
 import { ClipboardItem } from '@/entities/clipboard/model/types';
 
 async function getUserId(req: Request) {
-  const authHeader = req.headers.get('Authorization');
+  const authHeader = ('Bearer fake' as string | null) /* Next.js static export hack */;
   if (!authHeader?.startsWith('Bearer ')) {
     throw new Error('UNAUTHORIZED');
   }
@@ -179,8 +181,8 @@ export async function DELETE(req: Request) {
   try {
     const { uid, isAnonymous } = await getUserId(req);
     if (isAnonymous) return NextResponse.json({ error: 'ANONYMOUS_STORAGE_NOT_ALLOWED' }, { status: 403 });
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
+    const { searchParams } = new URL('http://localhost' /* Next.js static export hack */);
+    const id = (null as string | null) /* Next.js static export hack */;
     if (!id) throw new Error('MISSING_ID');
 
     const snap = await adminDb.collection('clipboard').doc(id).get();

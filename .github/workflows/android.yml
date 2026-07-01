@@ -1,0 +1,128 @@
+name: Android Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: "Build Type"
+        required: true
+        default: debug
+        type: choice
+        options:
+          - debug
+          - release
+          - bundle
+
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  android-build:
+    runs-on: ubuntu-latest
+
+    env:
+      CI: true
+      NODE_OPTIONS: --max-old-space-size=4096
+
+    steps:
+      - uses: actions/checkout@v4
+
+      ##########################################################
+      # Detect Node project
+      ##########################################################
+      - name: Detect package.json
+        id: node
+        run: |
+          if [ -f package.json ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      ##########################################################
+      # Node Setup
+      ##########################################################
+      - name: Setup Node
+        if: steps.node.outputs.exists == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.node.outputs.exists == 'true'
+        run: npm ci
+
+      ##########################################################
+      # Detect Capacitor
+      ##########################################################
+      - name: Detect Capacitor
+        id: capacitor
+        run: |
+          if [ -f capacitor.config.ts ] || [ -f capacitor.config.json ]; then
+            echo "enabled=true" >> $GITHUB_OUTPUT
+          else
+            echo "enabled=false" >> $GITHUB_OUTPUT
+          fi
+
+      ##########################################################
+      # Build Web App (Capacitor only)
+      ##########################################################
+      - name: Build Web
+        if: steps.capacitor.outputs.enabled == 'true'
+        run: npm run build
+
+      - name: Capacitor Sync
+        if: steps.capacitor.outputs.enabled == 'true'
+        run: npx cap sync android
+
+      ##########################################################
+      # Java
+      ##########################################################
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      ##########################################################
+      # Gradle Wrapper
+      ##########################################################
+      - name: Make gradlew executable
+        working-directory: android
+        run: chmod +x gradlew
+
+      ##########################################################
+      # Build
+      ##########################################################
+      - name: Build Debug APK
+        if: github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == ''
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Build Release APK
+        if: github.event.inputs.build_type == 'release'
+        working-directory: android
+        run: ./gradlew assembleRelease
+
+      - name: Build Release Bundle
+        if: github.event.inputs.build_type == 'bundle'
+        working-directory: android
+        run: ./gradlew bundleRelease
+
+      ##########################################################
+      # Upload APKs
+      ##########################################################
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build
+          path: |
+            android/**/*.apk
+            android/**/*.aab

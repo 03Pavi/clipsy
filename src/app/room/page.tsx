@@ -1,29 +1,31 @@
 'use client';
+
+'use client';
+
 import { useEffect, useState } from 'react';
 import { Box, Container, Grid, Paper, Typography, CircularProgress, Dialog, DialogTitle, DialogContent, List, ListItem, ListItemAvatar, Avatar, ListItemText, Button, DialogActions, Stack, ListItemButton } from '@mui/material';
 import { Lock, Phone, VideoCall, CallEnd } from '@mui/icons-material';
-import { useAuth } from '../../../hooks/use-auth';
-import { useRoom } from '../../../hooks/use-room';
-import { useRoomClipboard } from '../../../hooks/use-room-clipboard';
-import { useDevicePresence } from '../../../hooks/use-device-presence';
-import ClipboardInput from '../../../components/clipboard/clipboard-input';
-import ClipboardList from '../../../components/clipboard/clipboard-list';
-import RoomHeader from '../../../components/room/room-header';
-import RoomDeviceList from '../../../components/room/room-device-list';
-import RoomScreenShare from '../../../components/room/room-screen-share';
-import RoomJoinRequests from '../../../components/room/room-join-requests';
-import TemporaryRoomVideoCall from '../../../components/room/temporary-room-video-call';
+import { useAuth } from '../../hooks/use-auth';
+import { useRoom } from '../../hooks/use-room';
+import { useRoomClipboard } from '../../hooks/use-room-clipboard';
+import { useDevicePresence } from '../../hooks/use-device-presence';
+import ClipboardInput from '../../components/clipboard/clipboard-input';
+import ClipboardList from '../../components/clipboard/clipboard-list';
+import RoomHeader from '../../components/room/room-header';
+import RoomDeviceList from '../../components/room/room-device-list';
+import RoomScreenShare from '../../components/room/room-screen-share';
+import RoomJoinRequests from '../../components/room/room-join-requests';
+import TemporaryRoomVideoCall from '../../components/room/temporary-room-video-call';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useDispatch } from 'react-redux';
-import { addRecentRoom } from '../../../store/slices/recent-rooms-slice';
+import { addRecentRoom } from '../../store/slices/recent-rooms-slice';
 import { doc, onSnapshot, collection, getDoc, setDoc, updateDoc, query, where, deleteDoc } from 'firebase/firestore';
-import { db } from '../../../config/firebase-client';
-import { deviceStorage } from '../../../lib/device/device-storage';
+import { db } from '../../config/firebase-client';
+import { deviceStorage } from '../../lib/device/device-storage';
 
 export default function RoomPage() {
-  const params = useParams();
-  const roomId = params['room-id'] as string;
   const searchParams = useSearchParams();
+  const roomId = searchParams.get('id') as string;
   const autoAction = searchParams.get('action') as 'screenshare' | 'streamchat' | null;
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
@@ -95,7 +97,7 @@ export default function RoomPage() {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data.status === 'approved') {
-          router.push(`/room/${data.tempRoomId}`);
+          router.push(`/room?id=${data.tempRoomId}`);
           setActiveCallId(null);
           setCallingUser(null);
         } else if (data.status === 'rejected') {
@@ -215,7 +217,7 @@ export default function RoomPage() {
       await updateDoc(callRef, { status: 'approved' });
 
       // 4. Redirect
-      router.push(`/room/${tempRoomId}`);
+      router.push(`/room?id=${tempRoomId}`);
     } catch (err) {
       console.error('Failed to accept call:', err);
     }

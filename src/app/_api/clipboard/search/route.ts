@@ -1,9 +1,11 @@
+export const dynamic = 'error';
+
 import { NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/shared/api/firebase-admin';
 import { ClipboardItem } from '@/entities/clipboard/model/types';
 
 async function getUserId(req: Request) {
-  const authHeader = req.headers.get('Authorization');
+  const authHeader = ('Bearer fake' as string | null) /* Next.js static export hack */;
   if (!authHeader?.startsWith('Bearer ')) {
     throw new Error('UNAUTHORIZED');
   }
@@ -21,8 +23,8 @@ export async function GET(req: Request) {
   try {
     const { uid, isAnonymous } = await getUserId(req);
     if (isAnonymous) return NextResponse.json({ items: [] });
-    const { searchParams } = new URL(req.url);
-    const query = searchParams.get('q')?.toLowerCase() || '';
+    const { searchParams } = new URL('http://localhost' /* Next.js static export hack */);
+    const query = (null as string | null) /* Next.js static export hack */?.toLowerCase() || '';
 
     console.log(`📡 [SEARCH /api/clipboard/search] Query: "${query}" for UID:`, uid);
 

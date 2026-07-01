@@ -25,7 +25,7 @@ export default function RoomHeader({ room, onVideoCallClick }: { room: Room, onV
 
   const handleAction = (e: React.MouseEvent, action: 'screenshare' | 'streamchat') => {
     setAnchorEl(null);
-    router.push(`/room/${room.id}?action=${action}`);
+    router.push(`/room?id=${room.id}?action=${action}`);
   };
 
   const handleTogglePrivacy = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -138,7 +138,7 @@ export default function RoomHeader({ room, onVideoCallClick }: { room: Room, onV
         {isSomeoneElseBroadcasting && (
           <Tooltip title={`Watch ${room.activeScreenShare?.sharerName}'s Live Stream`}>
             <IconButton
-              onClick={() => router.push(`/room/${room.id}?action=watch`)}
+              onClick={() => router.push(`/room?id=${room.id}?action=watch`)}
               sx={{
                 color: '#00c6ff',
                 bgcolor: 'rgba(0, 198, 255, 0.1)',

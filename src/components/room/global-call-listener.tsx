@@ -88,7 +88,7 @@ export default function GlobalCallListener() {
 
       // 4. Clear overlay and redirect receiver to the temporary video room
       setIncomingCall(null);
-      router.push(`/room/${tempRoomId}`);
+      router.push(`/room?id=${tempRoomId}`);
     } catch (err) {
       console.error('Failed to accept call globally:', err);
     }

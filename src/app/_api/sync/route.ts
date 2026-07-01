@@ -1,3 +1,5 @@
+export const dynamic = 'error';
+
 import { NextResponse } from 'next/server';
 
 export async function GET() {

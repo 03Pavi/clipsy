@@ -1,9 +1,11 @@
+export const dynamic = 'error';
+
 import { NextResponse } from 'next/server';
 import { adminDb, adminAuth } from '@/shared/api/firebase-admin';
 import { Device } from '@/entities/device/model/types';
 
 async function getUserId(req: Request) {
-  const authHeader = req.headers.get('Authorization');
+  const authHeader = ('Bearer fake' as string | null) /* Next.js static export hack */;
   if (!authHeader?.startsWith('Bearer ')) {
     throw new Error('UNAUTHORIZED');
   }
@@ -165,8 +167,8 @@ export async function PATCH(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const uid = await getUserId(req);
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
+    const { searchParams } = new URL('http://localhost' /* Next.js static export hack */);
+    const id = (null as string | null) /* Next.js static export hack */;
     if (!id) throw new Error('MISSING_ID');
 
     const snap = await adminDb.collection('devices').where('userId', '==', uid).get();

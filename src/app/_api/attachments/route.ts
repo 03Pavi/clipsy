@@ -1,3 +1,5 @@
+export const dynamic = 'error';
+
 import { NextResponse } from 'next/server';
 import { adminRtdb } from '@/shared/api/firebase-admin';
 import { v4 as uuidv4 } from 'uuid';

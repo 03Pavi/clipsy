@@ -43,13 +43,13 @@ export function RoomCard({ room, showDelete, onDelete, copiedRoomId, setCopiedRo
   const handleAction = (e: React.MouseEvent, action: 'screenshare' | 'streamchat') => {
     e.stopPropagation();
     setAnchorEl(null);
-    router.push(`/room/${room.id}?action=${action}`);
+    router.push(`/room?id=${room.id}?action=${action}`);
   };
 
   return (
     <Paper
       elevation={0}
-      onClick={() => router.push(`/room/${room.id}`)}
+      onClick={() => router.push(`/room?id=${room.id}`)}
       sx={{
         p: 2.5,
         minWidth: 240,

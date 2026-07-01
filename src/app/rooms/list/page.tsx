@@ -154,7 +154,7 @@ export default function RoomsListPage() {
               <Paper
                 key={room.id}
                 elevation={0}
-                onClick={() => router.push(`/room/${room.id}`)}
+                onClick={() => router.push(`/room?id=${room.id}`)}
                 sx={{
                   p: 3,
                   borderRadius: 4,

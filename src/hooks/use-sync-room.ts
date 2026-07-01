@@ -20,7 +20,7 @@ export function useSyncRoom() {
     setError(null);
     try {
       const room = await joinRoomBySyncCode(user.uid, syncCode);
-      router.push(`/room/${room.id}`);
+      router.push(`/room?id=${room.id}`);
     } catch (err: any) {
       if (err.message === 'PRIVATE_ROOM_REQUEST_PENDING') {
         const roomsRef = collection(db, 'rooms');
@@ -48,7 +48,7 @@ export function useSyncRoom() {
     setError(null);
     try {
       const room = await createRoom(user.uid, name, isPrivate);
-      router.push(`/room/${room.id}`);
+      router.push(`/room?id=${room.id}`);
     } catch (err: any) {
       setError(err.message || 'Failed to create room');
     } finally {

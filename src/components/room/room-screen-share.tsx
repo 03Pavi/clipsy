@@ -423,13 +423,13 @@ export default function RoomScreenShare({ roomId, room, autoAction }: { roomId: 
     if (!autoAction || !room || !user) return;
     if (autoAction === 'screenshare') {
       startShare().catch(console.error);
-      router.replace(`/room/${roomId}`);
+      router.replace(`/room?id=${roomId}`);
     } else if (autoAction === 'streamchat') {
       startCameraCall().catch(console.error);
-      router.replace(`/room/${roomId}`);
+      router.replace(`/room?id=${roomId}`);
     } else if (autoAction === 'watch') {
       startWatching().catch(console.error);
-      router.replace(`/room/${roomId}`);
+      router.replace(`/room?id=${roomId}`);
     }
   }, [autoAction, room, user, roomId]);
 

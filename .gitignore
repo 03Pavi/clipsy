@@ -6,4 +6,6 @@ node_modules
 .idea/
 coverage
 /etc/secrets
-.env.local
+.env.localout/
+android/
+out/
