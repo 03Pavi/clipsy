@@ -26,7 +26,7 @@ export default function RoomHeader({ room, onVideoCallClick }: { room: Room, onV
     setAnchorEl(null);
   };
 
-  const handleAction = (e: React.MouseEvent, action: 'screenshare' | 'streamchat') => {
+  const handleAction = (e: React.MouseEvent, action: 'screenshare' | 'streamchat' | 'groupchat') => {
     setAnchorEl(null);
     router.push(`/room/${room.id}?action=${action}`);
   };
@@ -190,9 +190,9 @@ export default function RoomHeader({ room, onVideoCallClick }: { room: Room, onV
           <ScreenShare fontSize="small" sx={{ color: '#0070f3' }} />
           <Typography variant="body2" fontWeight={500}>Start Screen Share</Typography>
         </MenuItem>
-        <MenuItem onClick={(e) => handleAction(e, 'streamchat')} sx={{ gap: 1.5, py: 1 }}>
-          <CameraAlt fontSize="small" sx={{ color: '#22c55e' }} />
-          <Typography variant="body2" fontWeight={500}>Stream Chat</Typography>
+        <MenuItem onClick={(e) => handleAction(e, 'groupchat')} sx={{ gap: 1.5, py: 1 }}>
+          <VideoCall fontSize="small" sx={{ color: '#22c55e' }} />
+          <Typography variant="body2" fontWeight={500}>Group Video Chat</Typography>
         </MenuItem>
       </Menu>
       </Box>

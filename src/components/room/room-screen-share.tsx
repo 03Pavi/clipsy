@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Box, Button, Typography, Paper, CircularProgress, Grid, IconButton } from '@mui/material';
-import { ScreenShare, StopScreenShare, CameraAlt, FiberManualRecord, Fullscreen, FullscreenExit } from '@mui/icons-material';
+import { ScreenShare, StopScreenShare, CameraAlt, FiberManualRecord, Fullscreen, FullscreenExit, Mic, MicOff, Videocam, VideocamOff, VideoCall } from '@mui/icons-material';
 import { createClipboardItem } from '../../services/clipboard/create-clipboard-item';
 import { useAuthStore } from '../../stores/auth-store';
 import { deviceStorage } from '../../lib/device/device-storage';
@@ -18,13 +18,15 @@ const peerConnectionConfig = {
   ]
 };
 
-export default function RoomScreenShare({ roomId, room, autoAction }: { roomId: string, room: Room | null, autoAction?: 'screenshare' | 'streamchat' | 'watch' | null }) {
+export default function RoomScreenShare({ roomId, room, autoAction }: { roomId: string, room: Room | null, autoAction?: 'screenshare' | 'streamchat' | 'groupchat' | 'watch' | null }) {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeViewers, setActiveViewers] = useState<string[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentStreamType, setCurrentStreamType] = useState<'screen' | 'camera' | null>(null);
+  const [isMicMuted, setIsMicMuted] = useState(false);
+  const [isVideoPaused, setIsVideoPaused] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const localContainerRef = useRef<HTMLDivElement>(null);
@@ -140,10 +142,28 @@ export default function RoomScreenShare({ roomId, room, autoAction }: { roomId: 
       currentStream.getTracks().forEach(track => track.stop());
     }
     setStream(null);
+    setIsMicMuted(false);
+    setIsVideoPaused(false);
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
     await stopBroadcasting();
+  };
+
+  const toggleMic = () => {
+    if (!stream) return;
+    stream.getAudioTracks().forEach(track => {
+      track.enabled = !track.enabled;
+    });
+    setIsMicMuted(!isMicMuted);
+  };
+
+  const toggleVideo = () => {
+    if (!stream) return;
+    stream.getVideoTracks().forEach(track => {
+      track.enabled = !track.enabled;
+    });
+    setIsVideoPaused(!isVideoPaused);
   };
 
   const captureFrame = async (videoElement: HTMLVideoElement | null) => {
@@ -321,7 +341,7 @@ export default function RoomScreenShare({ roomId, room, autoAction }: { roomId: 
     if (autoAction === 'screenshare') {
       startShare().catch(console.error);
       router.replace(`/room/${roomId}`);
-    } else if (autoAction === 'streamchat') {
+    } else if (autoAction === 'streamchat' || autoAction === 'groupchat') {
       startCameraCall().catch(console.error);
       router.replace(`/room/${roomId}`);
     }
@@ -334,6 +354,9 @@ export default function RoomScreenShare({ roomId, room, autoAction }: { roomId: 
   const isCurrentSharer = stream !== null;
   const activeStreams = Object.values(room?.activeStreams || {}).filter(s => s.active);
   const otherStreams = activeStreams.filter(s => s.sharerId !== user?.uid);
+
+  const hasRemoteCameraStreams = otherStreams.some(s => s.type === 'camera');
+  const showJoinBanner = !isCurrentSharer && hasRemoteCameraStreams;
 
   // If no streams are active (including local), we render nothing to save space,
   // or we could show a placeholder. Let's return null if no active streams and not currently sharing.
@@ -350,6 +373,45 @@ export default function RoomScreenShare({ roomId, room, autoAction }: { roomId: 
           100% { opacity: 0.4; }
         }
       `}</style>
+
+      {showJoinBanner && (
+        <Paper
+          elevation={0}
+          sx={{
+            mb: 2,
+            p: 2,
+            borderRadius: 3,
+            bgcolor: 'rgba(0, 112, 243, 0.1)',
+            border: '1px solid rgba(0, 112, 243, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 2
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <VideoCall sx={{ color: '#0070f3', fontSize: 28 }} />
+            <Box>
+              <Typography variant="subtitle1" fontWeight={600} sx={{ color: '#fff' }}>
+                Group Video Chat in Progress
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+                Others are sharing their cameras. Join the conversation!
+              </Typography>
+            </Box>
+          </Box>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<VideoCall />}
+            onClick={() => startCameraCall()}
+            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
+          >
+            Join with Camera
+          </Button>
+        </Paper>
+      )}
 
       <Grid container spacing={2}>
         {/* Render local stream if active */}
@@ -479,6 +541,48 @@ export default function RoomScreenShare({ roomId, room, autoAction }: { roomId: 
                 </Box>
 
                 <Box sx={{ display: 'flex', gap: 1.5, width: { xs: '100%', sm: 'auto' } }}>
+                  {currentStreamType === 'camera' && (
+                    <>
+                      <Button
+                        variant="outlined"
+                        onClick={toggleMic}
+                        startIcon={isMicMuted ? <MicOff /> : <Mic />}
+                        sx={{
+                          borderRadius: 2,
+                          borderColor: isMicMuted ? 'rgba(239, 68, 68, 0.5)' : 'rgba(255, 255, 255, 0.2)',
+                          color: isMicMuted ? '#ef4444' : '#fff',
+                          textTransform: 'none',
+                          fontWeight: 600,
+                          flexGrow: { xs: 1, sm: 0 },
+                          '&:hover': {
+                            borderColor: isMicMuted ? '#ef4444' : '#fff',
+                            bgcolor: isMicMuted ? 'rgba(239, 68, 68, 0.05)' : 'rgba(255, 255, 255, 0.05)'
+                          }
+                        }}
+                      >
+                        {isMicMuted ? 'Unmute' : 'Mute'}
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        onClick={toggleVideo}
+                        startIcon={isVideoPaused ? <VideocamOff /> : <Videocam />}
+                        sx={{
+                          borderRadius: 2,
+                          borderColor: isVideoPaused ? 'rgba(239, 68, 68, 0.5)' : 'rgba(255, 255, 255, 0.2)',
+                          color: isVideoPaused ? '#ef4444' : '#fff',
+                          textTransform: 'none',
+                          fontWeight: 600,
+                          flexGrow: { xs: 1, sm: 0 },
+                          '&:hover': {
+                            borderColor: isVideoPaused ? '#ef4444' : '#fff',
+                            bgcolor: isVideoPaused ? 'rgba(239, 68, 68, 0.05)' : 'rgba(255, 255, 255, 0.05)'
+                          }
+                        }}
+                      >
+                        {isVideoPaused ? 'Resume' : 'Pause'}
+                      </Button>
+                    </>
+                  )}
                   <Button
                     variant="outlined"
                     color="error"
