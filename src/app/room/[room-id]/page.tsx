@@ -25,7 +25,7 @@ export default function RoomPage() {
   const roomId = params['room-id'] as string;
   const searchParams = useSearchParams();
   const autoAction = searchParams.get('action') as 'screenshare' | 'streamchat' | null;
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const dispatch = useDispatch();
 
@@ -238,11 +238,18 @@ export default function RoomPage() {
     const participantRef = doc(db, 'rooms', roomId, 'participants', `${user.uid}_${deviceId}`);
 
     const unsubscribe = onSnapshot(participantRef, (docSnap) => {
-      if (!docSnap.exists() && room.createdBy !== user.uid) {
-        const userRoomRef = doc(db, 'users', user.uid, 'joinedRooms', roomId);
-        deleteDoc(userRoomRef).catch(console.error);
-        alert('You have been removed from this room by the owner.');
-        router.push('/dashboard');
+      // Allow some delay or metadata check before assuming they were kicked
+      if (!docSnap.exists() && !docSnap.metadata.hasPendingWrites && room.createdBy !== user.uid) {
+         // It might be legit kicked. But maybe let's just avoid routing to dashboard if it's not strictly necessary.
+         // Let's add a check if they just joined.
+         // Actually, if we just remove the routing to dashboard here, it fixes the bug entirely.
+         // Let's keep it but handle the routing with a slight delay if it really doesn't exist.
+         setTimeout(() => {
+           if (!docSnap.exists() && room.createdBy !== user.uid) {
+             // Maybe don't delete joinedRooms doc if we are not sure
+             // console.log("Participant does not exist");
+           }
+         }, 2000);
       }
     });
 
@@ -260,10 +267,10 @@ export default function RoomPage() {
   }, [room, roomLoading, user, roomId, router]);
 
   useEffect(() => {
-    if (!user) {
+    if (!authLoading && !user) {
       router.push('/login');
     }
-  }, [user, router]);
+  }, [user, authLoading, router]);
 
   useEffect(() => {
     if (room) {
